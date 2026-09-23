@@ -595,8 +595,10 @@ function nextRank(){
 
 /* ---------- 绘制 ---------- */
 function drawGround(){
-  ctx.fillStyle = '#0d1220';
-  ctx.fillRect(0, GROUND, W, H - GROUND);
+  // 整屏清底（含 GROUND 以上区域），避免上一帧残影/重影
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0f1e';
+  ctx.fillRect(0, 0, W, H);
   // 中央场地线
   ctx.strokeStyle = 'rgba(34,211,238,.25)';
   ctx.lineWidth = 2;
@@ -758,9 +760,9 @@ function hpBar(x, y, w, h, f, isP){
 }
 
 /* ---------- 主循环 ---------- */
-/* rAF + setInterval 双驱动：rAF 暂停（如切后台）时由 setInterval 兜底，
-   单帧异常也不会杀死游戏循环 */
-let tick = 0;
+/* rAF 为主驱动；setInterval 兜底：rAF 暂停（如切后台）时保证游戏继续跑。
+   framePending 避免同一帧被两个驱动重复绘制（否则会造成重影） */
+let tick = 0, framePending = false;
 function frame(ts){
   const dt = Math.min(.033, (ts - last)/1000 || .016);
   last = ts;
@@ -779,8 +781,11 @@ function frame(ts){
     }
   } catch(e){ /* 单帧异常不中断游戏 */ }
 }
-function loop(ts){ frame(ts); requestAnimationFrame(loop); }
-setInterval(() => { frame(performance.now()); }, 60);   // 兜底驱动
+function loop(ts){
+  if(!framePending){ framePending = true; frame(ts); framePending = false; }
+  requestAnimationFrame(loop);
+}
+setInterval(() => { if(!framePending){ framePending = true; frame(performance.now()); framePending = false; } }, 60);   // 兜底驱动
 requestAnimationFrame(loop);
 
 /* ---------- 页面控制 ---------- */
