@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>跆拳道 · AI 对战 | 抖音校园 WowLand</title>
+<meta name="description" content="上海理工大学 · 跆拳道社 × AI：操控小人挑战 AI 跆拳道高手，三局两胜 KO 制！感受 AI 与跆拳道的双重魅力。">
+<style>
+  :root{
+    --bg:#0b0e17;
+    --panel:#131a2b;
+    --line:#24304d;
+    --cyan:#22d3ee;
+    --cyan-glow:rgba(34,211,238,.55);
+    --red:#ff3b5c;
+    --red-glow:rgba(255,59,92,.55);
+    --gold:#fbbf24;
+    --text:#e8eefc;
+    --dim:#93a3c7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  /* 背景网格+光晕 */
+  .bgfx{position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, rgba(34,211,238,.10), transparent 60%),
+      radial-gradient(1000px 500px at 85% 110%, rgba(255,59,92,.10), transparent 60%),
+      var(--bg);}
+  .bgfx::after{content:"";position:absolute;inset:0;
+    background-image:linear-gradient(rgba(120,150,220,.05) 1px,transparent 1px),
+                     linear-gradient(90deg, rgba(120,150,220,.05) 1px,transparent 1px);
+    background-size:48px 48px;}
+
+  /* ===== 引导页 ===== */
+  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:20px;gap:18px;overflow-y:auto;}
+  .hidden{display:none !important;}
+  .landing-card{
+    width:min(680px,100%);background:linear-gradient(160deg,rgba(24,33,58,.92),rgba(14,19,36,.94));
+    border:1px solid var(--line);border-radius:20px;padding:28px 26px;
+    box-shadow:0 0 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+    display:flex;flex-direction:column;gap:16px;position:relative;overflow:hidden;}
+  .landing-card::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(500px 240px at 85% 0%, rgba(34,211,238,.08), transparent 60%);}
+  .badge-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .badge{font-size:11px;letter-spacing:.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);
+    color:var(--dim);background:rgba(255,255,255,.03);}
+  .badge.hot{border-color:rgba(251,191,36,.45);color:var(--gold);}
+  h1.logo{font-size:clamp(22px,5vw,34px);font-weight:800;letter-spacing:2px;line-height:1.25;
+    background:linear-gradient(90deg,#67e8f9,#38bdf8 45%,#ff3b5c 110%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{color:var(--dim);font-size:13px;line-height:1.6;}
+  .sub b{color:var(--text);}
+  .perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+  .perk{border:1px solid var(--line);border-radius:12px;padding:12px 12px;background:rgba(255,255,255,.03);}
+  .perk .icon{font-size:20px;}
+  .perk .t{font-size:14px;font-weight:700;margin:6px 0 2px;}
+  .perk .d{font-size:11.5px;color:var(--dim);line-height:1.5;}
+  .qr-zone{display:flex;align-items:center;gap:16px;border:1px dashed var(--line);border-radius:14px;
+    padding:14px 16px;background:rgba(34,211,238,.03);flex-wrap:wrap;}
+  .qr-frame{width:96px;height:96px;flex:none;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    color:#0b0e17;font-size:11px;text-align:center;padding:4px;overflow:hidden;position:relative;}
+  .qr-frame img{width:100%;height:100%;object-fit:contain;border-radius:6px;}
+  .qr-placeholder{font-size:11px;color:#5a6b8c;line-height:1.6;font-weight:600;}
+  .qr-side{flex:1;min-width:180px;}
+  .qr-side .t{font-weight:700;font-size:15px;}
+  .qr-side .d{font-size:12px;color:var(--dim);line-height:1.6;margin-top:4px;}
+  .howto{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--dim);}
+  .howto .k{display:inline-flex;align-items:center;gap:6px;}
+  .keycap{display:inline-block;background:#1b2440;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;
+    padding:2px 7px;font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#cfe0ff;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;cursor:pointer;font-weight:800;
+    border-radius:12px;font-size:16px;letter-spacing:1px;padding:14px 22px;transition:transform .12s, box-shadow .12s, filter .12s;
+    text-decoration:none;color:#071018;}
+  .btn:active{transform:translateY(1px) scale(.99);}
+  .btn-primary{background:linear-gradient(90deg,#22d3ee,#38bdf8);box-shadow:0 8px 30px rgba(34,211,238,.35);}
+  .btn-primary:hover{filter:brightness(1.08);box-shadow:0 8px 40px rgba(34,211,238,.5);}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:13px;}
+  .btn-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:2px;}
+  .foot-note{font-size:11px;color:#5a6b8c;text-align:center;line-height:1.6;}
+
+  /* ===== 游戏页 ===== */
+  #game{position:fixed;inset:0;z-index:5;background:var(--bg);}
+  canvas{display:block;position:absolute;inset:0;width:100%;height:100%;}
+
+  /* HUD 覆盖层（分数、回合、操作提示由 canvas 绘制，这里只放结束面板） */
+  .overlay-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
+    width:min(460px,92vw);background:linear-gradient(160deg,rgba(24,33,58,.95),rgba(12,16,30,.97));
+    border:1px solid var(--line);border-radius:20px;padding:26px 24px;text-align:center;
+    box-shadow:0 20px 80px rgba(0,0,0,.6);display:none;gap:14px;flex-direction:column;}
+  .overlay-panel.show{display:flex;}
+  .op-title{font-size:26px;font-weight:900;letter-spacing:2px;}
+  .op-title.win{color:var(--gold);text-shadow:0 0 24px rgba(251,191,36,.6);}
+  .op-title.lose{color:var(--red);text-shadow:0 0 24px rgba(255,59,92,.5);}
+  .op-sub{color:var(--dim);font-size:13px;line-height:1.6;}
+  .op-stats{display:flex;justify-content:center;gap:26px;font-size:13px;color:var(--dim);}
+  .op-stats b{color:var(--text);font-size:17px;}
+  .op-qr{display:flex;align-items:center;gap:12px;border:1px dashed var(--line);border-radius:12px;padding:10px 14px;
+    background:rgba(34,211,238,.04);text-align:left;}
+  .op-qr .qr-frame{width:64px;height:64px;}
+  .op-qr .t{font-weight:700;font-size:13.5px;}
+  .op-qr .d{font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:2px;}
+  .btn-row.center{justify-content:center;}
+
+  /* 移动端触控按钮 */
+  #touch{position:absolute;inset:0;z-index:6;display:none;pointer-events:none;}
+  #touch.show{display:block;}
+  .tk{position:absolute;border-radius:50%;border:2px solid rgba(34,211,238,.35);background:rgba(34,211,238,.08);
+    color:#cfeaff;display:flex;align-items:center;justify-content:center;font-weight:800;pointer-events:auto;
+    touch-action:none;backdrop-filter:blur(2px);}
+  .tk:active{background:rgba(34,211,238,.3);border-color:rgba(34,211,238,.8);}
+  #t-left{left:4%;bottom:18%;width:118px;height:118px;font-size:26px;}
+  #t-right{left:calc(4% + 138px);bottom:18%;width:118px;height:118px;font-size:26px;}
+  #t-kick{right:4%;bottom:26%;width:104px;height:104px;font-size:20px;border-color:rgba(255,59,92,.45);background:rgba(255,59,92,.10);color:#ffd7de;}
+  #t-block{right:calc(4% + 122px);bottom:26%;width:104px;height:104px;font-size:20px;border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.10);color:#fff3d6;}
+  #t-move{left:4%;bottom:18%;width:118px;height:118px;font-size:26px;opacity:.9;}
+</style>
+</head>
+<body>
+<div class="bgfx"></div>
+
+<!-- ================= 引导页 ================= -->
+<div id="landing" class="screen">
+  <div class="landing-card">
+    <div class="badge-row">
+      <span class="badge">抖音校园 · WowLand</span>
+      <span class="badge">上海理工大学</span>
+      <span class="badge hot">跆拳道社 × AI</span>
+    </div>
+    <h1 class="logo">跆拳道 · AI 对战</h1>
+    <p class="sub">操控小人，挑战 AI 跆拳道高手！三局两胜 KO 制。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，一招一式都是科技与热血的碰撞。</p>
+
+    <div class="perks">
+      <div class="perk"><div class="icon">🥋</div><div class="t">AI 对手</div><div class="d">会攻防、会闪避的 AI 跆拳道高手，从白带到黑带逐个挑战</div></div>
+      <div class="perk"><div class="icon">🎮</div><div class="t">易上手</div><div class="d">手机、电脑都能玩，键鼠 / 触屏双操控，30 秒学会</div></div>
+      <div class="perk"><div class="icon">🏆</div><div class="t">段位晋级</div><div class="d">击败 AI 赢下段位徽章，看看你能走到哪一带</div></div>
+    </div>
+
+    <div class="howto">
+      <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">J</span> 出拳 · <span class="keycap">K</span> 踢腿 · <span class="keycap">L</span> 格挡</span>
+      <span class="k">📱 触屏：屏幕按钮直接点</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-start">⚔ 开始挑战 AI</button>
+    </div>
+
+    <div class="qr-zone">
+      <div class="qr-frame">
+        <!-- 替换为官方二维码图片：<img src="qrcode.png" alt="抖音校园官方号二维码"> -->
+        <span class="qr-placeholder">二维码<br>占位区<br>（替换图片）</span>
+      </div>
+      <div class="qr-side">
+        <div class="t">🤝 对 AI 感兴趣？加入我们</div>
+        <div class="d">关注 <b>抖音校园·上海理工大学官方号</b>，解锁：<br>
+        🔹 实习机会 · 内推通道　🔹 与行业前辈直接沟通<br>
+        🔹 AI 工具课程与训练营　🔹 校园活动优先参与</div>
+      </div>
+    </div>
+
+    <p class="foot-note">本活动为抖音校园 WowLand 公益实践项目，自愿参与，不收取任何费用 · 由上海理工大学跆拳道社 × 抖音校园联合呈现</p>
+  </div>
+</div>
+
+<!-- ================= 游戏 ================= -->
+<div id="game" class="hidden">
+  <canvas id="cv"></canvas>
+
+  <div id="touch">
+    <div class="tk" id="t-left">◀</div>
+    <div class="tk" id="t-right">▶</div>
+    <div class="tk" id="t-kick">🦵 踢</div>
+    <div class="tk" id="t-block">🛡 挡</div>
+  </div>
+
+  <!-- 结束面板 -->
+  <div class="overlay-panel" id="endPanel">
+    <div class="op-title" id="endTitle"></div>
+    <div class="op-sub" id="endSub"></div>
+    <div class="op-stats">
+      <span>你 <b id="stP"></b></span>
+      <span>AI <b id="stA"></b></span>
+      <span>连胜 <b id="stW"></b></span>
+    </div>
+    <div class="btn-row center">
+      <button class="btn btn-primary" id="btn-re">⚔ 再来一局</button>
+      <button class="btn btn-ghost" id="btn-home">🏠 返回首页</button>
+    </div>
+    <div class="op-qr">
+      <div class="qr-frame"><span class="qr-placeholder">二维码<br>占位区</span></div>
+      <div>
+        <div class="t">📢 喜欢 AI 对战？加入抖音校园</div>
+        <div class="d">实习机会 · 内推 · 前辈交流 · AI 课程，扫码关注上海理工大学官方号</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   跆拳道 · AI 对战 —— 纯前端单文件游戏
+   玩法：三局两胜 KO 制。玩家 vs AI 跆拳道高手（不同段位难度递增）
+   操控：桌面键鼠 / 移动端触屏
+   音效：Web Audio 代码合成（无需素材）
+   ===================================================================== */
+
+/* ---------- 工具 ---------- */
+const $ = id => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => 1 - Math.pow(1 - t, 3);
+
+/* ---------- 画布 ---------- */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0;
+const SCALE = () => Math.min(W, 780) / 780;   // 画布逻辑缩放
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  CX = W / 2;
+  GROUND = H - Math.max(70, H * 0.10);   // 地面高度
+  placeTouch();
+}
+window.addEventListener('resize', resize);
+
+/* ---------- 音频（Web Audio 合成） ---------- */
+let AC = null;
+function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function sfx(type, vol = 0.5){
+  const ac = audio(); if(!ac) return;
+  const t = ac.currentTime;
+  const tone = (f0, f1, dur, wave = 'square') => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = wave; o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+  };
+  switch(type){
+    case 'punch': tone(130, 40, .12); break;        // 出拳 低频
+    case 'kick':  tone(90, 30, .18); break;          // 踢腿
+    case 'hit':   tone(260, 60, .16, 'sawtooth'); break;   // 命中
+    case 'guard': tone(700, 500, .06); break;       // 格挡
+    case 'ko':    tone(180, 30, .8, 'sawtooth'); break;    // KO
+    case 'win':   [523,659,784].forEach(f => tone(f, f, .16, 'sine')); break; // 胜利和弦
+    case 'lose':  [392,330,262].forEach(f => tone(f, f, .2, 'sine')); break;
+  }
+}
+
+/* ---------- 输入状态 ---------- */
+const keys = {};
+const touch = { left:false, right:false, kick:false, block:false };
+function isDown(dir){ return keys['a']||keys['A']||keys['arrowleft']||touch.left; }
+
+/* 格挡需要按住：L 键 / 触屏按钮按住期间持续保持 block 状态 */
+function holdBlock(v){
+  if(v){
+    if(player.state==='idle'){ player.state='block'; player.cool = Math.max(player.cool, .3); }
+    player.holdBlock = true;
+  } else {
+    player.holdBlock = false;
+    if(player.state==='block') player.state='idle';
+  }
+}
+
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if(['a','d','j','k','l',' '].includes(k)) e.preventDefault();
+  if(k === ' ' || k === 'j') tryPunch(player);
+  if(k === 'k') tryKick(player);
+  if(k === 'l') holdBlock(true);
+});
+document.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = false;
+  if(k === 'l') holdBlock(false);
+});
+
+/* 触屏按钮 */
+function placeTouch(){
+  const show = matchMedia('(pointer: coarse)').matches;
+  $('touch').classList.toggle('show', show);
+  if(!show) return;
+  const b = (id, fn) => {
+    const el = $(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); fn(true); }, {passive:false});
+    el.addEventListener('touchend', e => { e.preventDefault(); fn(false); }, {passive:false});
+    el.addEventListener('touchcancel', () => fn(false));
+  };
+  b('t-left',  v => touch.left = v);
+  b('t-right', v => touch.right = v);
+  b('t-kick',  v => { touch.kick = v; if(v) tryKick(player); });
+  b('t-block', v => holdBlock(v));
+}
+placeTouch();
+
+/* ---------- 游戏常量 ---------- */
+const STATE = { menu:'menu', fight:'fight', over:'over' };
+const state = { mode:STATE.menu, overTimer:0, winStreak:0 };
+
+const RANKS = [
+  { name:'白带', color:'#e8eefc', ai:0.32, speed:0.9, hp:90,  tag:'新手 AI' },
+  { name:'黄带', color:'#facc15', ai:0.50, speed:1.05, hp:115, tag:'入门 AI' },
+  { name:'蓝带', color:'#38bdf8', ai:0.68, speed:1.2, hp:140, tag:'进阶 AI' },
+  { name:'红带', color:'#f97316', ai:0.85, speed:1.4, hp:165, tag:'高手 AI' },
+  { name:'黑带', color:'#1f2937', ai:1.0, speed:1.6, hp:195, tag:'宗师 AI' },
+];
+let rankIdx = 0;
+let roundWins = 0, aiWins = 0;   // 大比分（三局两胜）
+
+/* ---------- 角色类 ---------- */
+class Fighter {
+  constructor(x, side, opts){
+    this.x = x; this.side = side;             // 'p' 玩家 / 'a' AI
+    this.w = 46; this.h = 140;
+    this.face = side==='p' ? 1 : -1;          // 朝向
+    this.vx = 0;
+    this.hp = 100; this.maxHp = 100;
+    this.attack = opts.attack || 10;
+    this.kickP = opts.kickP || 0.45;          // 出腿概率
+    this.anim = 0; this.animT = 0;
+    this.state = 'idle'; this.stT = 0;        // 当前动作
+    this.freeze = 0;                          // 受击硬直
+    this.kd = 0; this.kdT = 0;                // 倒地
+    this.flash = 0;                           // 受击闪白
+    this.cool = 0;                            // 出招冷却
+    this.particle = [];
+    this.stepT = 0; this.legAng = 0; this.armAng = 0; this.bob = 0;
+  }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; }
+  get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'; }
+  get grounded(){ return this.kd<=0; }
+  canAct(){ return this.grounded && this.freeze<=0 && this.state==='idle'; }
+}
+
+const player = new Fighter(0, 'p', { attack:14, kickP:0.5 });
+const ai = new Fighter(0, 'a', { attack:8, kickP:0.55 });
+const R = () => RANKS[rankIdx];
+
+/* 粒子特效 */
+function burst(f, n, color, spd=5){
+  for(let i=0;i<n;i++){
+    const a = rand(0, Math.PI*2), s = rand(spd*.4, spd);
+    f.particle.push({ x:f.x + f.face*20, y:f.y - f.h*.45,
+      vx:Math.cos(a)*s, vy:Math.sin(a)*s - 2, life:rand(.3,.7), max:0.7, r:rand(2,4.5), color });
+  }
+}
+
+/* 战斗逻辑 */
+function tryPunch(f){
+  if(!f.canAct() || f.cool>0) return;
+  if(f.state==='block') f.holdBlock = false;
+  f.state = 'attack'; f.stT = 0; f.anim = 1; f.cool = 0.55;
+  sfx('punch', .25);
+  setTimeout(() => { if(f.state==='attack') f.state='idle'; }, 340);
+}
+function tryKick(f){
+  if(!f.canAct() || f.cool>0) return;
+  if(f.state==='block') f.holdBlock = false;
+  f.state = 'kick'; f.stT = 0; f.anim = 1.6; f.cool = 0.85;
+  sfx('kick', .3);
+  setTimeout(() => { if(f.state==='kick') f.state='idle'; }, 500);
+}
+function tryBlock(f, dur=0.5){
+  if(!f.canAct()) return;
+  f.state = 'block'; f.stT = 0; f.cool = 0.4;
+  setTimeout(() => { if(f.state==='block') f.state='idle'; }, dur*1000);
+}
+
+/* 检测攻击命中：f 攻击方，t 防守方 */
+function resolveHit(f, t){
+  const r = f.state==='kick' ? 92 : 70;
+  const dist = Math.abs(t.x - f.x) - (f.w + t.w)/2;
+  const inRange = dist < r;
+  const facing = Math.sign(t.x - f.x) === f.face;
+  if(!inRange || !facing) return;
+
+  const dmg = f.state==='kick' ? f.attack*1.6 : f.attack;
+  if(t.state === 'block' && t.grounded){
+    // 格挡成功
+    sfx('guard', .3);
+    burst(t, 8, '#fbbf24', 4);
+    t.freeze = Math.max(t.freeze, .18);
+    return;
+  }
+  // 命中
+  t.freeze = .32;
+  t.flash = .2;
+  t.hp -= dmg;
+  sfx('hit', .45);
+  burst(t, 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', 6);
+  // 击退
+  t.vx = f.face * 6;
+  if(t.hp <= 0) knockdown(t, f);
+}
+
+function knockdown(t, f){
+  t.hp = 0;
+  t.kd = 1.6; t.kdT = 0; t.state = 'idle';
+  burst(t, 30, '#ff3b5c', 8);
+  sfx('ko', .6);
+  t.vx = f.face * 9;
+}
+
+/* ---------- AI 大脑 ---------- */
+function aiThink(dt){
+  const rank = R();
+  const f = ai;
+  const p = player;
+  const dist = Math.abs(p.x - f.x);
+
+  // 若玩家倒地，AI 后退保持距离
+  if(!p.grounded){ f.face = p.x > f.x ? 1 : -1; f.vx = -f.face * 90; return; }
+
+  // 面朝玩家
+  const wantFace = p.x > f.x ? 1 : -1;
+  if(f.grounded && f.state==='idle') f.face = wantFace;
+
+  // 决策冷却：难度越高反应越快
+  f.thinkT = (f.thinkT||0) - dt;
+  if(f.thinkT <= 0 && f.canAct()){
+    const skill = rank.ai;
+    f.thinkT = rand(.45, 1.0) / (0.45 + skill*0.5);
+    const roll = Math.random();
+    // 技能越高越倾向于进攻
+    const aggr = 0.3 + skill * 0.35;
+
+    if(dist > 190){        // 远：逼近
+      f.vx = wantFace * rand(140, 220) * rank.speed;
+    } else if(dist < 105){ // 近：随机出招/后撤
+      if(roll < 0.14 && skill > .5){ f.vx = -wantFace * 260; }        // 撤步
+      else if(roll < 0.20){ tryKick(f); }
+      else if(roll < aggr){ tryPunch(f); }
+      else { f.vx = -wantFace * rand(60,120); }
+    } else {               // 中距：试探与突进
+      if(roll < 0.12 && skill > .55){ tryKick(f); }
+      else if(roll < aggr*0.8){ tryPunch(f); }
+      else if(roll < 0.62){ f.vx = wantFace * rand(260, 340); }       // 突进
+      else { f.vx = -wantFace * rand(80,160); }
+    }
+    // 高手：预判格挡（玩家出招时）
+    if(skill > .6 && (p.state==='attack'||p.state==='kick') && dist < 130 && Math.random() < (skill-.55)*.8){
+      f.state = 'block'; f.cool = Math.max(f.cool, .4);
+      setTimeout(() => { if(f.state==='block') f.state='idle'; }, 350);
+    }
+  }
+
+  // 移动阻尼
+  f.vx = lerp(f.vx, 0, dt * 6);
+}
+
+/* ---------- 更新 ---------- */
+let last = 0, hitLocks = new Set();
+function update(dt, t){
+  const p = player, f = ai;
+
+  // 通用物理（倒地角色只计时不行动）
+  for(const g of [p, f]){
+    if(g.kd>0){
+      g.kdT += dt;
+      if(g.kdT >= g.kd){
+        // 起身
+        g.kd = 0; g.kdT = 0; g.hp = Math.max(g.hp, 1); g.state='idle'; g.freeze=.3;
+      } else {
+        continue;   // 仍在倒地，跳过行动处理
+      }
+    }
+    g.x += g.vx * dt;
+    g.vx = lerp(g.vx, 0, dt * 5);
+    if(g.state==='idle' && g.freeze>0) g.freeze -= dt;
+    g.cool = Math.max(0, g.cool - dt);
+    g.flash = Math.max(0, g.flash - dt);
+    // 粒子
+    for(let i=g.particle.length-1;i>=0;i--){
+      const pt = g.particle[i];
+      pt.life -= dt; pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.vy += 15*dt;
+      if(pt.life<=0) g.particle.splice(i,1);
+    }
+  }
+
+  // 回合判定要在起身之前：倒地中立即结算
+  if(state.mode===STATE.fight){
+    if(f.kd>0 && !f.roundDone){ f.roundDone = true; roundWins++; sfx('win'); endRound(); }
+    else if(p.kd>0 && !p.roundDone){ p.roundDone = true; aiWins++; sfx('lose'); endRound(); }
+  }
+
+  // 玩家输入（仅可行动时）
+  if(p.canAct()){
+    // 持续格挡（按住 L / 触屏挡）
+    if(p.holdBlock){
+      if(p.state==='idle') p.state='block';
+      p.cool = Math.max(p.cool, .25);
+    }
+    const mv = isDown('right') - isDown('left');
+    if(mv !== 0){ p.face = mv; p.vx = mv * 230; p.stepT += dt; }
+    else p.stepT = 0;
+    if(touch.kick && p.cool<=0) tryKick(p);
+  }
+
+  // 出招命中判定
+  const checks = [
+    { f:p, t:f }, { f:f, t:p }
+  ];
+  for(const c of checks){
+    const g = c.f;
+    if((g.state==='attack'||g.state==='kick') && !hitLocks.has(g)){
+      // 出招前摇后判定
+      if(g.stT > (g.state==='kick' ? .08 : .05)){
+        resolveHit(g, c.t);
+        hitLocks.add(g);
+      }
+    }
+    if(g.state!=='attack' && g.state!=='kick') hitLocks.delete(g);
+  }
+  for(const g of [p,f]) g.stT += dt;
+
+  // 边界
+  const L = CX - W*.44, Rg = CX + W*.44;
+  p.x = clamp(p.x, L, Rg); f.x = clamp(f.x, L, Rg);
+  // 面对面
+  const gap = (p.w + f.w)/2 + 12;
+  if(Math.abs(f.x - p.x) < gap){
+    if(p.x < f.x){ p.x = f.x - gap; } else { p.x = f.x + gap; }
+  }
+
+  // AI 思考
+  if(state.mode===STATE.fight) aiThink(dt);
+}
+
+/* ---------- 回合流程 ---------- */
+let roundMsg = '', roundMsgT = 0, roundNum = 1;
+function startRound(){
+  const hp = R().hp;
+  player.reset(hp); ai.reset(hp);
+  player.x = CX - 150; ai.x = CX + 150;
+  player.face = 1; ai.face = -1;
+  player.roundDone = false; ai.roundDone = false;
+  hitLocks.clear();
+  roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;
+  state.mode = STATE.fight;
+}
+function endRound(){
+  state.mode = STATE.over; state.overTimer = 1.6;
+}
+function afterRound(){
+  if(roundWins >= 2){ gameOver(true); return; }
+  if(aiWins >= 2){ gameOver(false); return; }
+  roundNum++;
+  startRound();
+}
+function gameOver(win){
+  state.mode = STATE.over; state.overTimer = 0;
+  const panel = $('endPanel');
+  $('endTitle').textContent = win ? '🎉 你赢了！' : '💀 被 AI 击败';
+  $('endTitle').className = 'op-title ' + (win ? 'win' : 'lose');
+  $('endSub').textContent = win
+    ? `你击败了 ${R().name} AI！跆拳道段位提升，感受 AI 的厉害了吧？`
+    : `${R().name} AI 太强了，再练练出招时机吧！`;
+  $('stP').textContent = roundWins; $('stA').textContent = aiWins;
+  $('stW').textContent = state.winStreak;
+  panel.classList.add('show');
+  sfx(win ? 'win' : 'lose', .5);
+}
+function nextRank(){
+  if(roundWins>=2){   // 胜利：晋级下一段位
+    if(rankIdx < RANKS.length-1){
+      rankIdx++;
+    } else {
+      gameOver(true);   // 已通关全部段位
+      return;
+    }
+  }
+  // 失败（或通关后再玩）：留在当前段位重赛
+  roundWins = 0; aiWins = 0; roundNum = 1;
+  startRound();
+}
+
+/* ---------- 绘制 ---------- */
+function drawGround(){
+  ctx.fillStyle = '#0d1220';
+  ctx.fillRect(0, GROUND, W, H - GROUND);
+  // 中央场地线
+  ctx.strokeStyle = 'rgba(34,211,238,.25)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 12]);
+  ctx.beginPath(); ctx.moveTo(0, GROUND); ctx.lineTo(W, GROUND); ctx.stroke();
+  ctx.setLineDash([]);
+  // 中心圆
+  ctx.strokeStyle = 'rgba(34,211,238,.18)';
+  ctx.beginPath(); ctx.arc(CX, GROUND, 130, 0, Math.PI*2); ctx.stroke();
+}
+
+function drawFighter(f, t, dt){
+  const s = SCALE();
+  ctx.save();
+  ctx.translate(f.x, GROUND);
+  // 影子
+  ctx.fillStyle = 'rgba(0,0,0,.5)';
+  ctx.beginPath(); ctx.ellipse(0, 2, 26*s, 6*s, 0, 0, Math.PI*2); ctx.fill();
+
+  // 受击闪白
+  if(f.flash>0){ ctx.globalAlpha = .55 + .45*Math.sin(t*40); }
+
+  const isPlayer = f.side==='p';
+  const colorMain = isPlayer ? '#38bdf8' : '#ff3b5c';
+  const colorDark = isPlayer ? '#0ea5e9' : '#e11d48';
+  const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,59,92,';
+
+  // 倒地
+  if(f.kd>0){
+    const prog = ease(Math.min(1, f.kdT/.25));
+    ctx.translate(0, -prog * 12*s);
+    ctx.rotate(-f.face * prog * 1.4);
+  }
+
+  const bob = f.state==='idle' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
+  const hgt = f.h * s;
+
+  // 身体（躯干）
+  ctx.fillStyle = colorMain;
+  ctx.strokeStyle = colorDark;
+  ctx.lineWidth = 2.5*s;
+  roundRect(-9*s, -hgt + 34*s + bob, 18*s, 66*s, 6*s);
+  // 头
+  ctx.beginPath(); ctx.arc(0, -hgt + 14*s + bob, 11*s, 0, Math.PI*2);
+  ctx.fillStyle = colorMain; ctx.fill(); ctx.stroke();
+  // 头带（跆拳道）
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(-11*s, -hgt + 20*s + bob, 22*s, 3.4*s);
+  // 眼睛/方向
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(f.face*5*s, -hgt + 13*s + bob, 2.6*s, 0, Math.PI*2); ctx.fill();
+
+  const armA = f.state==='attack' ? (f.face * (f.stT<.15 ? -2.6 : 1.1)) : Math.sin(f.stepT*10)*.3;
+  const legA = f.state==='kick' ? (f.face * (f.stT<.2 ? -1.2 : 2.2)) : Math.sin(f.stepT*8)*.45;
+
+  // 出拳手臂
+  ctx.save(); ctx.translate(f.face*12*s, -hgt + 62*s + bob);
+  ctx.rotate(armA * .9);
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(18*s, 0); ctx.stroke();
+  // 拳套
+  ctx.fillStyle = colorGlow + '.9)';
+  ctx.beginPath(); ctx.arc(20*s, 0, 6*s, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // 踢腿
+  ctx.save(); ctx.translate(f.face*10*s, -hgt + 84*s + bob);
+  ctx.rotate(legA * .8);
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 8*s; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(20*s, 0); ctx.stroke();
+  ctx.fillStyle = colorGlow + '.9)';
+  ctx.beginPath(); ctx.arc(22*s, 0, 6*s, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // 后腿（支撑）
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 8*s; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-4*s, -hgt + 88*s + bob); ctx.lineTo(-8*s, -hgt + 102*s + bob); ctx.stroke();
+  // 格挡姿态：手臂横挡
+  if(f.state==='block'){
+    ctx.save(); ctx.translate(f.face*8*s, -hgt + 52*s + bob);
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 9*s; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f.face*20*s, 10*s); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 粒子
+  for(const pt of f.particle){
+    ctx.globalAlpha = clamp(pt.life/pt.max, 0, 1);
+    ctx.fillStyle = pt.color;
+    ctx.beginPath(); ctx.arc(pt.x - f.x, pt.y - GROUND, pt.r*s, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill();
+}
+
+/* HUD */
+function drawHUD(t){
+  const rank = R();
+  const s = SCALE();
+  const barW = Math.min(280, W*.30), barH = 16*s, y = 30;
+
+  // 玩家
+  hpBar(CX - 30 - barW, y, barW, barH, player, true);
+  // AI
+  hpBar(CX + 30, y, barW, barH, ai, false);
+
+  // 名字
+  ctx.font = `700 ${15*s}px sans-serif`; ctx.textAlign='left';
+  ctx.fillStyle = '#67e8f9';
+  ctx.fillText('你', CX - 30 - barW, y - 8);
+  ctx.textAlign='right'; ctx.fillStyle = '#ffb3c0';
+  ctx.fillText(`AI · ${rank.name}`, CX + 30 + barW, y - 8);
+
+  // 回合信息（中央）
+  ctx.textAlign='center';
+  ctx.font = `900 ${22*s}px sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillText(`第 ${roundNum} 回合`, CX, y + 42*s);
+
+  // 大比分
+  ctx.font = `700 ${13*s}px sans-serif`;
+  ctx.fillStyle = roundWins>aiWins ? '#fbbf24' : '#93a3c7';
+  ctx.fillText(`${roundWins} - ${aiWins}`, CX, y + 64*s);
+
+  // 提示
+  ctx.font = `500 ${11.5*s}px sans-serif`;
+  ctx.fillStyle = 'rgba(147,163,199,.7)';
+  ctx.fillText('A/D 移动 · J 拳 · K 踢 · L 格挡（手机用屏幕按钮）', CX, H - 24);
+
+  // 中央提示文字
+  if(roundMsgT>0){
+    ctx.globalAlpha = clamp(roundMsgT, 0, 1);
+    ctx.font = `900 ${26*s}px sans-serif`;
+    ctx.fillStyle = '#e8eefc';
+    ctx.fillText(roundMsg, CX, H*.4);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function hpBar(x, y, w, h, f, isP){
+  const pct = clamp(f.hp / f.maxHp, 0, 1);
+  // 底
+  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  roundRect(x, y, w, h, h/2);
+  // 血条
+  ctx.fillStyle = isP ? '#22d3ee' : '#ff3b5c';
+  roundRect(x, y, w*pct, h, h/2);
+  // 光晕
+  ctx.shadowColor = isP ? '#22d3ee' : '#ff3b5c';
+  ctx.shadowBlur = 12;
+  roundRect(x, y, w*pct, h, h/2);
+  ctx.shadowBlur = 0;
+}
+
+/* ---------- 主循环 ---------- */
+/* rAF + setInterval 双驱动：rAF 暂停（如切后台）时由 setInterval 兜底，
+   单帧异常也不会杀死游戏循环 */
+let tick = 0;
+function frame(ts){
+  const dt = Math.min(.033, (ts - last)/1000 || .016);
+  last = ts;
+  const t = ts/1000;
+  try {
+    update(dt, t);
+    drawGround();
+    // 绘制顺序：AI 在前、玩家在后（保证视觉层次）
+    if(ai.x > player.x){ drawFighter(player, t, dt); drawFighter(ai, t, dt); }
+    else { drawFighter(ai, t, dt); drawFighter(player, t, dt); }
+    drawHUD(t);
+    // 结束延时后切换
+    if(state.mode===STATE.over && state.overTimer>0){
+      state.overTimer -= dt;
+      if(state.overTimer<=0){ state.overTimer=0; afterRound(); }
+    }
+  } catch(e){ /* 单帧异常不中断游戏 */ }
+}
+function loop(ts){ frame(ts); requestAnimationFrame(loop); }
+setInterval(() => { frame(performance.now()); }, 60);   // 兜底驱动
+requestAnimationFrame(loop);
+
+/* ---------- 页面控制 ---------- */
+function showGame(){
+  $('landing').classList.add('hidden');
+  $('game').classList.remove('hidden');
+  audio();  // 预创建音频上下文（用户手势）
+  startRound();
+}
+function showHome(){
+  $('game').classList.add('hidden');
+  $('landing').classList.remove('hidden');
+  $('endPanel').classList.remove('show');
+  state.mode = STATE.menu;
+}
+$('btn-start').addEventListener('click', showGame);
+$('btn-re').addEventListener('click', () => {
+  $('endPanel').classList.remove('show');
+  if(roundWins>=2 || aiWins>=2) nextRank();
+  else startRound();
+});
+$('btn-home').addEventListener('click', showHome);
+
+/* 触屏额外：双击防缩放 */
+document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
