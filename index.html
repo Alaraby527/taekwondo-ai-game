@@ -264,7 +264,10 @@ function sfx(type, vol = 0.5){
 /* ---------- 输入状态 ---------- */
 const keys = {};
 const touch = { left:false, right:false, kick:false, block:false };
-function isDown(dir){ return keys['a']||keys['A']||keys['arrowleft']||touch.left; }
+function isDown(dir){
+  if(dir==='right') return keys['d']||keys['D']||keys['arrowright']||touch.right;
+  return keys['a']||keys['A']||keys['arrowleft']||touch.left;
+}
 
 /* 格挡需要按住：L 键 / 触屏按钮按住期间持续保持 block 状态 */
 function holdBlock(v){
