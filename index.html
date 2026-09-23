@@ -121,8 +121,9 @@
   .tk:active{background:rgba(34,211,238,.3);border-color:rgba(34,211,238,.8);}
   #t-left{left:4%;bottom:18%;width:118px;height:118px;font-size:26px;}
   #t-right{left:calc(4% + 138px);bottom:18%;width:118px;height:118px;font-size:26px;}
-  #t-kick{right:4%;bottom:26%;width:104px;height:104px;font-size:20px;border-color:rgba(255,59,92,.45);background:rgba(255,59,92,.10);color:#ffd7de;}
-  #t-block{right:calc(4% + 122px);bottom:26%;width:104px;height:104px;font-size:20px;border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.10);color:#fff3d6;}
+  #t-kick{right:4%;bottom:26%;width:100px;height:100px;font-size:19px;border-color:rgba(255,59,92,.45);background:rgba(255,59,92,.10);color:#ffd7de;}
+  #t-block{right:calc(4% + 118px);bottom:26%;width:100px;height:100px;font-size:19px;border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.10);color:#fff3d6;}
+  #t-jump{right:calc(4% + 236px);bottom:26%;width:100px;height:100px;font-size:19px;border-color:rgba(103,232,249,.5);background:rgba(103,232,249,.10);color:#dff8ff;}
   #t-move{left:4%;bottom:18%;width:118px;height:118px;font-size:26px;opacity:.9;}
 </style>
 </head>
@@ -147,7 +148,8 @@
     </div>
 
     <div class="howto">
-      <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">J</span> 出拳 · <span class="keycap">K</span> 踢腿 · <span class="keycap">L</span> 格挡</span>
+      <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">W</span>/<span class="keycap">Space</span> 跳 · <span class="keycap">J</span> 拳 · <span class="keycap">K</span> 踢 · <span class="keycap">L</span> 挡</span>
+      <span class="k">🌀 炫技：空中踢=飞踢 · 连按 <span class="keycap">K</span>=旋风踢 · 连续命中=连招加伤</span>
       <span class="k">📱 触屏：屏幕按钮直接点</span>
     </div>
 
@@ -192,6 +194,7 @@
     <div class="tk" id="t-right">▶</div>
     <div class="tk" id="t-kick">🦵 踢</div>
     <div class="tk" id="t-block">🛡 挡</div>
+    <div class="tk" id="t-jump">⤴ 跳</div>
   </div>
 
   <!-- 结束面板 -->
@@ -290,16 +293,20 @@ function sfx(type, vol = 0.5){
 
 /* ---------- 输入状态 ---------- */
 const keys = {};
-const touch = { left:false, right:false, kick:false, block:false };
+const touch = { left:false, right:false, kick:false, block:false, jump:false };
 function isDown(dir){
   if(dir==='right') return keys['d']||keys['D']||keys['arrowright']||touch.right;
-  return keys['a']||keys['A']||keys['arrowleft']||touch.left;
+  if(dir==='left') return keys['a']||keys['A']||keys['arrowleft']||touch.left;
+  if(dir==='jump') return keys['w']||keys['W']||keys['arrowup']||keys[' ']||touch.jump;
+  return false;
 }
+const jumpBuf = { p:0, a:0 };        // 跳跃缓冲（触屏/连按）
+function setJump(side){ jumpBuf[side] = .16; }
 
 /* 格挡需要按住：L 键 / 触屏按钮按住期间持续保持 block 状态 */
 function holdBlock(v){
   if(v){
-    if(player.state==='idle'){ player.state='block'; player.cool = Math.max(player.cool, .3); }
+    if(player.state==='idle' && player.cast===''){ player.state='block'; player.cool = Math.max(player.cool, .3); }
     player.holdBlock = true;
   } else {
     player.holdBlock = false;
@@ -310,9 +317,10 @@ function holdBlock(v){
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   keys[k] = true;
-  if(['a','d','j','k','l',' '].includes(k)) e.preventDefault();
-  if(k === ' ' || k === 'j') tryPunch(player);
-  if(k === 'k') tryKick(player);
+  if(['a','d','w','j','k','l',' '].includes(k)) e.preventDefault();
+  if(k === 'j') tryPunch(player);
+  if(k === 'k' && !e.repeat) tryKick(player);       // e.repeat 过滤按住连发
+  if(k === ' ' || k === 'w' || k === 'arrowup') setJump('p');
   if(k === 'l') holdBlock(true);
 });
 document.addEventListener('keyup', e => {
@@ -322,6 +330,7 @@ document.addEventListener('keyup', e => {
 });
 
 /* 触屏按钮 */
+let kickEdge = false;   // 踢钮边沿触发（按住不连发）
 function placeTouch(){
   const show = matchMedia('(pointer: coarse)').matches;
   $('touch').classList.toggle('show', show);
@@ -334,8 +343,9 @@ function placeTouch(){
   };
   b('t-left',  v => touch.left = v);
   b('t-right', v => touch.right = v);
-  b('t-kick',  v => { touch.kick = v; if(v) tryKick(player); });
+  b('t-kick',  v => { touch.kick = v; if(v) kickEdge = true; });
   b('t-block', v => holdBlock(v));
+  b('t-jump',  v => { touch.jump = v; if(v) setJump('p'); });
 }
 placeTouch();
 
@@ -371,11 +381,17 @@ class Fighter {
     this.cool = 0;                            // 出招冷却
     this.particle = [];
     this.stepT = 0; this.legAng = 0; this.armAng = 0; this.bob = 0;
+    this.jumpV = 0; this.jumpH = 0; this.airborne = false; this.y = 0;   // 跳跃（y=跳起高度）
+    this.combo = 0; this.comboT = 0;          // 连击计数与窗口
+    this.kickBuf = []; this.kickBufT = 0;     // 连按踢→旋风踢
+    this.cast = ''; this.castT = 0;           // 特技状态（spinx 旋风踢）
+    this.cyc = 0;                             // 旋风踢旋转角（绘制用）
+    this.flyKick = false;                     // 飞踢标记
   }
-  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; }
-  get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'; }
-  get grounded(){ return this.kd<=0; }
-  canAct(){ return this.grounded && this.freeze<=0 && this.state==='idle'; }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; }
+  get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'||this.cast!==''; }
+  get grounded(){ return this.kd<=0 && !this.airborne; }
+  canAct(){ return this.kd<=0 && this.freeze<=0 && this.state==='idle' && this.cast===''; }
 }
 
 const player = new Fighter(0, 'p', { attack:14, kickP:0.5 });
@@ -400,11 +416,41 @@ function tryPunch(f){
   setTimeout(() => { if(f.state==='attack') f.state='idle'; }, 340);
 }
 function tryKick(f){
+  // 连按踢：0.5s 内再次按 K → 旋风踢（可打断普通踢，无视冷却）
+  const now = performance.now()/1000;
+  if(f.kickBuf.length>0 && now - f.kickBuf[f.kickBuf.length-1] < .5){
+    f.kickBuf = []; f.kickBufT = 0;
+    if(f.state==='kick' || f.canAct()){
+      startSpinx(f);
+    }
+    return;
+  }
   if(!f.canAct() || f.cool>0) return;
+  // 空中出腿 → 飞踢（前冲）
+  if(f.airborne){ startFlyingKick(f); return; }
+  f.kickBuf.push(now);
+  f.kickBufT = .5;
   if(f.state==='block') f.holdBlock = false;
   f.state = 'kick'; f.stT = 0; f.anim = 1.6; f.cool = 0.85;
   sfx('kick', .3);
   setTimeout(() => { if(f.state==='kick') f.state='idle'; }, 500);
+}
+function startFlyingKick(f){
+  f.state = 'kick'; f.stT = 0; f.anim = 1.9; f.cool = 1.0;
+  f.jumpV = 380; f.jumpH = f.face * 460; f.airborne = true;   // 跃起前冲
+  f.flyKick = true;   // 标记飞踢
+  sfx('kick', .4);
+  setTimeout(() => { if(f.state==='kick' && !f.flyKick) f.state='idle'; }, 420);
+}
+function startSpinx(f){
+  f.cast = 'spinx'; f.castT = .45; f.cyc = 0;
+  f.cool = 1.05;
+  hitLocks.delete(f);   // 旋风踢是独立新动作，允许重新判定命中
+  sfx('kick', .4);
+  setTimeout(() => {
+    if(f.cast==='spinx'){ f.cast=''; f.castT=0; }
+    if(f.state==='kick') f.state='idle';
+  }, 480);
 }
 function tryBlock(f, dur=0.5){
   if(!f.canAct()) return;
@@ -414,15 +460,26 @@ function tryBlock(f, dur=0.5){
 
 /* 检测攻击命中：f 攻击方，t 防守方 */
 function resolveHit(f, t){
-  const r = f.state==='kick' ? 92 : 70;
+  const r = f.cast==='spinx' ? 130 : (f.state==='kick' ? 92 : 70);
   const dist = Math.abs(t.x - f.x) - (f.w + t.w)/2;
   const inRange = dist < r;
   const facing = Math.sign(t.x - f.x) === f.face;
   if(!inRange || !facing) return;
 
-  const dmg = f.state==='kick' ? f.attack*1.6 : f.attack;
+  // 连击：窗口内连续命中 → 伤害递增（3 击后触发浮空连打）
+  let combo = f.combo;
+  if(f.comboT <= 0) combo = 0;          // 窗口过期重置
+  combo++;
+  f.combo = combo; f.comboT = 1.0;
+
+  const base = f.state==='kick' ? f.attack*1.6 : f.attack;
+  let dmg = base * (1 + Math.min(combo-1, 3) * 0.14);   // 最多叠 3 段
+  if(f.cast==='spinx') dmg = base * 1.9;                 // 旋风踢高伤
+  if(f.flyKick) dmg = base * 1.35;                       // 飞踢加成
+
   if(t.state === 'block' && t.grounded){
-    // 格挡成功
+    // 格挡成功（连击重置）
+    f.combo = 0; f.comboT = 0;
     sfx('guard', .3);
     burst(t, 8, '#fbbf24', 4);
     t.freeze = Math.max(t.freeze, .18);
@@ -433,15 +490,17 @@ function resolveHit(f, t){
   t.flash = .2;
   t.hp -= dmg;
   sfx('hit', .45);
-  burst(t, 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', 6);
+  burst(t, f.cast==='spinx' ? 26 : 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', f.cast==='spinx' ? 8 : 6);
   // 击退
-  t.vx = f.face * 6;
+  t.vx = f.face * (f.cast==='spinx' ? 9 : 6);
+  // 旋风踢会把对手击飞一点
+  if(f.cast==='spinx') t.vx += f.face * 2;
   if(t.hp <= 0) knockdown(t, f);
 }
 
 function knockdown(t, f){
   t.hp = 0;
-  t.kd = 1.6; t.kdT = 0; t.state = 'idle';
+  t.kd = 1.6; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
   burst(t, 30, '#ff3b5c', 8);
   sfx('ko', .6);
   t.vx = f.face * 9;
@@ -459,7 +518,7 @@ function aiThink(dt){
 
   // 面朝玩家
   const wantFace = p.x > f.x ? 1 : -1;
-  if(f.grounded && f.state==='idle') f.face = wantFace;
+  if(f.grounded && f.state==='idle' && f.cast==='') f.face = wantFace;
 
   // 决策冷却：难度越高反应越快
   f.thinkT = (f.thinkT||0) - dt;
@@ -488,6 +547,17 @@ function aiThink(dt){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
       setTimeout(() => { if(f.state==='block') f.state='idle'; }, 350);
     }
+    // 高手：偶尔跳起进攻 / 旋风踢 / 飞踢
+    if(skill > .55 && f.state==='idle' && f.cast==='' && dist < 160 && dist > 80){
+      const sroll = Math.random();
+      if(sroll < .10 && skill > .8){
+        startSpinx(f);                                  // 黑带旋风踢
+        f.vx = wantFace * 200;
+      } else if(sroll < .18 && skill > .6){
+        startFlyingKick(f);                             // 飞踢
+        f.jumpH = wantFace * 380;
+      }
+    }
   }
 
   // 移动阻尼
@@ -506,8 +576,24 @@ function update(dt, t){
       if(g.kdT >= g.kd){
         // 起身
         g.kd = 0; g.kdT = 0; g.hp = Math.max(g.hp, 1); g.state='idle'; g.freeze=.3;
+        g.airborne = false; g.jumpV = 0; g.jumpH = 0;
       } else {
         continue;   // 仍在倒地，跳过行动处理
+      }
+    }
+    // 跳跃物理
+    if(g.airborne){
+      g.y = (g.y||0) + g.jumpV*dt;
+      g.jumpV -= 900*dt;                 // 重力
+      g.x += g.jumpH*dt;
+      g.jumpH = lerp(g.jumpH, 0, dt*2);
+      if(g.y <= 0){
+        g.y = 0; g.airborne = false; g.jumpV = 0; g.jumpH = 0;
+        // 落地
+        sfx('punch', .12);
+        if(g.state==='kick' && g.flyKick){ g.flyKick = false; g.state='idle'; }
+        if(g.cast==='spinx'){ g.cast=''; g.castT=0; }
+        g.freeze = Math.max(g.freeze, .08);
       }
     }
     g.x += g.vx * dt;
@@ -515,6 +601,19 @@ function update(dt, t){
     if(g.state==='idle' && g.freeze>0) g.freeze -= dt;
     g.cool = Math.max(0, g.cool - dt);
     g.flash = Math.max(0, g.flash - dt);
+    // 连击窗口
+    g.comboT = Math.max(0, g.comboT - dt);
+    // 踢击缓冲（连按→旋风踢）
+    g.kickBufT -= dt;
+    if(g.kickBufT <= 0) g.kickBuf = [];
+    // 旋风踢推进
+    if(g.cast==='spinx'){
+      g.cyc += dt * (g.castT > 0 ? 22 : 0);   // 旋转
+      g.castT -= dt;
+      if(g.castT <= 0){ g.cast=''; g.castT=0; }
+      // 旋风踢前冲
+      if(g.cast==='spinx') g.vx = g.face * 260;
+    }
     // 粒子
     for(let i=g.particle.length-1;i>=0;i--){
       const pt = g.particle[i];
@@ -539,7 +638,14 @@ function update(dt, t){
     const mv = isDown('right') - isDown('left');
     if(mv !== 0){ p.face = mv; p.vx = mv * 230; p.stepT += dt; }
     else p.stepT = 0;
-    if(touch.kick && p.cool<=0) tryKick(p);
+    if(kickEdge){ kickEdge = false; tryKick(player); }
+    // 跳跃
+    if(jumpBuf.p > 0){
+      jumpBuf.p -= dt;
+      if(!p.airborne){ p.airborne = true; p.y = 0; p.jumpV = 520; }
+    } else if(!isDown('jump') && p.airborne && p.state==='idle'){ /* 空中可动 */ }
+  } else {
+    jumpBuf.p = 0;
   }
 
   // 出招命中判定
@@ -548,14 +654,16 @@ function update(dt, t){
   ];
   for(const c of checks){
     const g = c.f;
-    if((g.state==='attack'||g.state==='kick') && !hitLocks.has(g)){
+    const hitting = g.cast==='spinx' || g.state==='attack' || g.state==='kick';
+    if(hitting && !hitLocks.has(g)){
       // 出招前摇后判定
-      if(g.stT > (g.state==='kick' ? .08 : .05)){
+      const delay = g.cast==='spinx' ? .05 : (g.state==='kick' ? .08 : .05);
+      if(g.stT > delay){
         resolveHit(g, c.t);
         hitLocks.add(g);
       }
     }
-    if(g.state!=='attack' && g.state!=='kick') hitLocks.delete(g);
+    if(!hitting) hitLocks.delete(g);
   }
   for(const g of [p,f]) g.stT += dt;
 
@@ -640,10 +748,10 @@ function drawGround(){
 function drawFighter(f, t, dt){
   const s = SCALE();
   ctx.save();
-  ctx.translate(f.x, GROUND);
-  // 影子
-  ctx.fillStyle = 'rgba(0,0,0,.5)';
-  ctx.beginPath(); ctx.ellipse(0, 2, 26*s, 6*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.translate(f.x, GROUND - (f.y||0));   // 跳跃抬高
+  // 影子（空中时投影在地面）
+  ctx.fillStyle = 'rgba(0,0,0,' + clamp(.5 - (f.y||0)/260, .12, .5) + ')';
+  ctx.beginPath(); ctx.ellipse(0, (f.y||0) + 2, 26*s, 6*s, 0, 0, Math.PI*2); ctx.fill();
 
   // 受击闪白
   if(f.flash>0){ ctx.globalAlpha = .55 + .45*Math.sin(t*40); }
@@ -653,6 +761,24 @@ function drawFighter(f, t, dt){
   const colorDark = isPlayer ? '#0ea5e9' : '#e11d48';
   const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,59,92,';
 
+  // 旋风踢：整身旋转 + 残影
+  if(f.cast==='spinx'){
+    // 残影（拖着画 3 个淡影）
+    ctx.save();
+    ctx.globalAlpha = .18;
+    for(let i=1;i<=3;i++){
+      const a = -f.cyc*1.2 - i*.8;
+      ctx.save();
+      ctx.translate(-f.face*i*7*s, 0);
+      ctx.rotate(a*f.face);
+      ctx.fillStyle = colorGlow + '.4)';
+      ctx.fillRect(-12*s, -86*s, 24*s, 86*s);
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.rotate(f.cyc * f.face * 1.4);
+  }
+
   // 倒地：身体向被击方向倒下、贴地（不移开地面）
   if(f.kd>0){
     const prog = ease(Math.min(1, f.kdT/.25));
@@ -660,13 +786,18 @@ function drawFighter(f, t, dt){
     ctx.rotate(-f.face * prog * 1.4);
   }
 
-  const bob = f.state==='idle' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
+  const bob = f.state==='idle' && f.cast==='' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
   ctx.translate(0, bob);   // 呼吸浮动（整身）
 
   // —— 人体比例（脚底 y=0 贴地，向上为负）——
   const hipY = -46*s, shY = -86*s;           // 髋部 / 肩部
   const headR = 12*s, headY = -100*s;        // 头
-  const legA = f.state==='kick' ? (f.face * (f.stT<.2 ? -1.2 : 2.2)) : 0;
+  // 踢腿：横踢 / 飞踢（空中前伸）/ 旋风踢（旋转由整身带动）
+  let legA = 0;
+  if(f.state==='kick'){
+    if(f.flyKick) legA = f.face * 1.7;        // 飞踢：腿前伸
+    else legA = f.face * (f.stT<.2 ? -1.2 : 2.2);
+  }
   const swing = Math.sin(f.stepT*8) * .35;   // 行走摆腿
 
   // 后腿（支撑）
@@ -702,7 +833,16 @@ function drawFighter(f, t, dt){
   ctx.beginPath(); ctx.arc(f.face*4.5*s, headY - 1*s, 2.8*s, 0, Math.PI*2); ctx.fill();
 
   // 手臂
-  if(f.state==='block'){
+  if(f.cast==='spinx'){
+    // 旋风踢：双臂甩开（跟随旋转）
+    ctx.save(); ctx.translate(0, shY + 12*s);
+    ctx.rotate(1.1 * f.face);
+    ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(24*s, -6*s); ctx.stroke();
+    ctx.fillStyle = colorGlow + '.9)';
+    ctx.beginPath(); ctx.arc(27*s, -7*s, 5*s, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else if(f.state==='block'){
     // 格挡：前臂横挡在胸前
     ctx.save(); ctx.translate(f.face*6*s, shY + 16*s);
     ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 9*s; ctx.lineCap='round';
@@ -730,11 +870,20 @@ function drawFighter(f, t, dt){
     ctx.restore();
   }
 
+  // 旋风踢：脚下旋转光弧
+  if(f.cast==='spinx'){
+    ctx.strokeStyle = 'rgba(251,191,36,.8)';
+    ctx.lineWidth = 3*s; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.arc(0, 0, 44*s, -f.cyc*1.5, -f.cyc*1.5 + 2.2);
+    ctx.stroke();
+  }
+
   // 粒子
   for(const pt of f.particle){
     ctx.globalAlpha = clamp(pt.life/pt.max, 0, 1);
     ctx.fillStyle = pt.color;
-    ctx.beginPath(); ctx.arc(pt.x - f.x, pt.y - GROUND, pt.r*s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x - f.x, pt.y - GROUND + (f.y||0), pt.r*s, 0, Math.PI*2); ctx.fill();
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -778,7 +927,17 @@ function drawHUD(t){
   // 提示
   ctx.font = `500 ${11.5*s}px sans-serif`;
   ctx.fillStyle = 'rgba(147,163,199,.7)';
-  ctx.fillText('A/D 移动 · J 拳 · K 踢 · L 格挡（手机用屏幕按钮）', CX, H - 24);
+  ctx.fillText('A/D 移动 · W/空格 跳 · J 拳 · K 踢(连按=旋风踢) · L 挡 · 空中踢=飞踢', CX, H - 24);
+
+  // 玩家连击显示
+  if(player.combo >= 2 && player.comboT > 0){
+    ctx.globalAlpha = clamp(player.comboT, 0, 1);
+    ctx.font = `900 ${18*s}px sans-serif`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center';
+    ctx.fillText(`连击 ×${player.combo}`, CX - 30 - barW/2, y + 92*s);
+    ctx.globalAlpha = 1;
+  }
 
   // 中央提示文字
   if(roundMsgT>0){
@@ -787,6 +946,17 @@ function drawHUD(t){
     ctx.fillStyle = '#e8eefc';
     ctx.fillText(roundMsg, CX, H*.4);
     ctx.globalAlpha = 1;
+  }
+  // 空中特技提示
+  if(player.cast==='spinx'){
+    ctx.font = `900 ${20*s}px sans-serif`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('🌀 旋风踢!', CX, H*.5);
+  }
+  if(player.flyKick){
+    ctx.font = `900 ${20*s}px sans-serif`;
+    ctx.fillStyle = '#67e8f9';
+    ctx.fillText('🦵 飞踢!', CX, H*.5);
   }
 }
 
