@@ -626,61 +626,80 @@ function drawFighter(f, t, dt){
   const colorDark = isPlayer ? '#0ea5e9' : '#e11d48';
   const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,59,92,';
 
-  // 倒地
+  // 倒地：身体向被击方向倒下、贴地（不移开地面）
   if(f.kd>0){
     const prog = ease(Math.min(1, f.kdT/.25));
-    ctx.translate(0, -prog * 12*s);
+    ctx.translate(f.face * prog * 10*s, 0);
     ctx.rotate(-f.face * prog * 1.4);
   }
 
   const bob = f.state==='idle' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
-  const hgt = f.h * s;
+  ctx.translate(0, bob);   // 呼吸浮动（整身）
 
-  // 身体（躯干）
-  ctx.fillStyle = colorMain;
-  ctx.strokeStyle = colorDark;
-  ctx.lineWidth = 2.5*s;
-  roundRect(-9*s, -hgt + 34*s + bob, 18*s, 66*s, 6*s);
-  // 头
-  ctx.beginPath(); ctx.arc(0, -hgt + 14*s + bob, 11*s, 0, Math.PI*2);
-  ctx.fillStyle = colorMain; ctx.fill(); ctx.stroke();
-  // 头带（跆拳道）
-  ctx.fillStyle = '#fbbf24';
-  ctx.fillRect(-11*s, -hgt + 20*s + bob, 22*s, 3.4*s);
-  // 眼睛/方向
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(f.face*5*s, -hgt + 13*s + bob, 2.6*s, 0, Math.PI*2); ctx.fill();
-
-  const armA = f.state==='attack' ? (f.face * (f.stT<.15 ? -2.6 : 1.1)) : Math.sin(f.stepT*10)*.3;
-  const legA = f.state==='kick' ? (f.face * (f.stT<.2 ? -1.2 : 2.2)) : Math.sin(f.stepT*8)*.45;
-
-  // 出拳手臂
-  ctx.save(); ctx.translate(f.face*12*s, -hgt + 62*s + bob);
-  ctx.rotate(armA * .9);
-  ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(18*s, 0); ctx.stroke();
-  // 拳套
-  ctx.fillStyle = colorGlow + '.9)';
-  ctx.beginPath(); ctx.arc(20*s, 0, 6*s, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-
-  // 踢腿
-  ctx.save(); ctx.translate(f.face*10*s, -hgt + 84*s + bob);
-  ctx.rotate(legA * .8);
-  ctx.strokeStyle = colorDark; ctx.lineWidth = 8*s; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(20*s, 0); ctx.stroke();
-  ctx.fillStyle = colorGlow + '.9)';
-  ctx.beginPath(); ctx.arc(22*s, 0, 6*s, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
+  // —— 人体比例（脚底 y=0 贴地，向上为负）——
+  const hipY = -46*s, shY = -86*s;           // 髋部 / 肩部
+  const headR = 12*s, headY = -100*s;        // 头
+  const legA = f.state==='kick' ? (f.face * (f.stT<.2 ? -1.2 : 2.2)) : 0;
+  const swing = Math.sin(f.stepT*8) * .35;   // 行走摆腿
 
   // 后腿（支撑）
-  ctx.strokeStyle = colorDark; ctx.lineWidth = 8*s; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-4*s, -hgt + 88*s + bob); ctx.lineTo(-8*s, -hgt + 102*s + bob); ctx.stroke();
-  // 格挡姿态：手臂横挡
+  ctx.save(); ctx.translate(-4*s, hipY); ctx.rotate(-swing*.6);
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 9*s; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-2*s, 42*s); ctx.stroke();
+  ctx.fillStyle = colorGlow + '.9)';
+  ctx.beginPath(); ctx.ellipse(-2*s, 44*s, 6*s, 3.5*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // 前腿（踢击腿）
+  ctx.save(); ctx.translate(4*s, hipY);
+  ctx.rotate(f.state==='kick' ? -legA*.9 : swing*.7);
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 9*s; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 42*s); ctx.stroke();
+  ctx.fillStyle = colorGlow + '.9)';
+  ctx.beginPath(); ctx.ellipse(0, 44*s, 6*s, 3.5*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // 躯干（道服）
+  roundRect(-12*s, shY, 24*s, hipY - shY, 7*s);
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 2*s; ctx.stroke();
+  // 腰带（AI 用段位色）
+  ctx.fillStyle = isPlayer ? '#e2e8f0' : R().color;
+  ctx.fillRect(-12*s, hipY - 2*s, 24*s, 4.5*s);
+
+  // 头（与肩自然衔接）+ 头带 + 眼睛
+  ctx.beginPath(); ctx.arc(0, headY, headR, 0, Math.PI*2);
+  ctx.fillStyle = colorMain; ctx.fill();
+  ctx.strokeStyle = colorDark; ctx.lineWidth = 2.5*s; ctx.stroke();
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(-headR, headY - 2*s, headR*2, 3.6*s);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(f.face*4.5*s, headY - 1*s, 2.8*s, 0, Math.PI*2); ctx.fill();
+
+  // 手臂
   if(f.state==='block'){
-    ctx.save(); ctx.translate(f.face*8*s, -hgt + 52*s + bob);
+    // 格挡：前臂横挡在胸前
+    ctx.save(); ctx.translate(f.face*6*s, shY + 16*s);
     ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 9*s; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f.face*20*s, 10*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6*s, 4*s); ctx.lineTo(f.face*20*s, 4*s); ctx.stroke();
+    ctx.fillStyle = colorGlow + '.9)';
+    ctx.beginPath(); ctx.arc(f.face*23*s, 4*s, 5.5*s, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else if(f.state==='attack'){
+    // 出拳：先收拳再打出
+    ctx.save(); ctx.translate(f.face*10*s, shY + 10*s);
+    ctx.rotate((f.stT<.15 ? -2.2 : .6) * f.face * .45);
+    ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(22*s, 0); ctx.stroke();
+    ctx.fillStyle = colorGlow + '.9)';
+    ctx.beginPath(); ctx.arc(25*s, 0, 5.5*s, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else {
+    // 待机：手臂自然下垂轻摆
+    ctx.save(); ctx.translate(f.face*8*s, shY + 8*s);
+    ctx.rotate(Math.sin(f.stepT*10)*.35 + .12);
+    ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 22*s); ctx.stroke();
+    ctx.fillStyle = colorGlow + '.9)';
+    ctx.beginPath(); ctx.arc(0, 24*s, 5*s, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
