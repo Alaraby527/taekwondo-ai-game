@@ -148,7 +148,7 @@
       <span class="badge hot">跆拳道社 × AI</span>
     </div>
     <h1 class="logo">跆拳道 · AI 对战</h1>
-    <p class="sub">操控小人，挑战 AI 跆拳道高手！<b>横踢是主力</b>（实战 60-80% 的技术），后踢打反击、旋风踢与飞踢踢头终结。按 <b>WT 竞技规则</b>计分：正拳躯干 1 分 · 踢躯干 2 分 · 旋转技（后踢/旋风踢）3 分 · 踢头 3 分 · 旋转技踢头 4 分。三局两胜，击倒后 8 秒读秒，完全出界判罚对方 +1 分。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，科技与热血的碰撞。</p>
+    <p class="sub">操控小人，挑战 AI 跆拳道高手！<b>横踢是主力</b>（实战 60-80% 的技术），后踢打反击、旋风踢与飞踢踢头终结。按 <b>WT 竞技规则</b>计分：正拳躯干 1 分 · 踢躯干 2 分 · 旋转技（后踢/旋风踢）3 分 · 踢头 3 分 · 旋转技踢头 4 分。<b>五局三胜</b>，击倒后 8 秒读秒，完全出界判罚对方 +1 分。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，科技与热血的碰撞。</p>
 
     <div class="perks">
       <div class="perk"><div class="icon">🥋</div><div class="t">AI 对手</div><div class="d">会攻防、会闪避的 AI 跆拳道高手，从白带到黑带逐个挑战</div></div>
@@ -382,7 +382,7 @@ $('btn-rotate-dismiss').addEventListener('click', () => { portraitDismissed = tr
 
 /* ---------- 游戏常量 ---------- */
 const STATE = { menu:'menu', fight:'fight', over:'over' };
-const state = { mode:STATE.menu, overTimer:0, winStreak:0, roundTime:60, count:null, countNum:8, countT:0 };
+const state = { mode:STATE.menu, overTimer:0, winStreak:0, roundTime:60, count:null, countNum:8, countT:0, intro:0 };
 
 const RANKS = [
   { name:'白带', color:'#e8eefc', ai:0.42, speed:1.0, hp:90,  tag:'新手 AI' },
@@ -572,6 +572,7 @@ function resolveHit(f, t){
   t.flash = .2;
   t.hp -= dmg;
   sfx('hit', .45);
+  shake(f.cast==='spinx' ? 11 : (f.flyKick ? 7 : 4.5), f.cast==='spinx' ? .3 : .16);
   burst(t, f.cast==='spinx' ? 26 : 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', f.cast==='spinx' ? 8 : 6);
   // 击退
   t.vx = f.face * (f.cast==='spinx' ? 9 : 6);
@@ -586,6 +587,8 @@ function knockdown(t, f){
   t.rise = 0; t.riseSpeed = 0;
   burst(t, 30, '#ff3b5c', 8);
   sfx('ko', .6);
+  shake(14, .55);
+  announce('K.O.!', 1.8, '#ff3b5c');
   t.vx = f.face * 9;
   // 进入 8 秒读秒（WT 规则：被击倒后裁判读秒，数到 8 未起身即 KO 判负）
   state.count = t.side;      // 'p' 玩家被读秒 / 'a' AI 被读秒
@@ -665,9 +668,26 @@ function aiThink(dt){
 
 /* ---------- 更新 ---------- */
 let last = 0, hitLocks = new Set();
+/* 特效：震屏 / 大字播报 */
+let shakeT = 0, shakeDur = 1, shakeAmp = 0, bigMsg = null;
+function shake(amp, dur){ shakeAmp = Math.max(shakeAmp, amp); shakeDur = dur; shakeT = dur; }
+function announce(text, dur=1.4, color='#fbbf24'){ bigMsg = { text, t: dur, dur, color }; }
 function update(dt, t){
   if(window.__pause) return;   // 调试暂停（浏览器自动化用）
   const p = player, f = ai;
+
+  // 特效计时衰减
+  shakeT = Math.max(0, shakeT - dt);
+  if(bigMsg){ bigMsg.t -= dt; if(bigMsg.t <= 0) bigMsg = null; }
+
+  // 开局倒计时：双方冻结（输入/AI/命中暂停，回合计时不走）
+  if(state.intro > 0){
+    state.intro -= dt;
+    p.vx = f.vx = 0; p.stepT = f.stepT = 0;
+    p.state = f.state = 'idle';
+    jumpBuf.p = 0; kickEdge = false;
+  }
+  const introHold = state.intro > 0;
 
   // 通用物理（倒地角色只计时不行动）
   for(const g of [p, f]){
@@ -699,6 +719,7 @@ function update(dt, t){
         } else if(g.kdT >= 8){
           // 数到 8 未起身 → KO 判负
           g.kd = 0; g.kdT = 0; g.state='kd'; g.rise = 1;
+          announce('KO 判负', 1.6, '#ff3b5c');
           if(state.count === g.side) state.count = null;
         }
       }
@@ -727,6 +748,8 @@ function update(dt, t){
     g.flash = Math.max(0, g.flash - dt);
     // 连击窗口
     g.comboT = Math.max(0, g.comboT - dt);
+    // 血条损伤延迟（视觉缓动）
+    g.hpDisp = (g.hpDisp === undefined) ? g.hp : lerp(g.hpDisp, g.hp, Math.min(1, dt*2.5));
     // 踢击缓冲（连按→旋风踢）
     g.kickBufT -= dt;
     if(g.kickBufT <= 0) g.kickBuf = [];
@@ -793,8 +816,8 @@ function update(dt, t){
     else if(p.kd>0 || p.rise>=1){ if(!p.roundDone){ p.roundDone = true; aiWins++; sfx('lose'); endRound(); } }
   }
 
-  // 玩家输入（仅可行动时）
-  if(p.canAct()){
+  // 玩家输入（仅可行动时；开局倒计时期间冻结）
+  if(p.canAct() && !introHold){
     // 持续格挡（按住 L / 触屏挡）
     if(p.holdBlock){
       if(p.state==='idle') p.state='block';
@@ -818,7 +841,7 @@ function update(dt, t){
     { f:p, t:f }, { f:f, t:p }
   ];
   for(const c of checks){
-    if(state.count) break;
+    if(state.count || introHold) break;
     const g = c.f;
     // 旋风踢只在"踢出"阶段（phase 2）判定命中
     const spinxHit = g.cast==='spinx' && g.phase === 2;
@@ -866,20 +889,21 @@ function update(dt, t){
   p.x = clamp(p.x, CX - COURT - 42, CX + COURT + 42);
   f.x = clamp(f.x, CX - COURT - 42, CX + COURT + 42);
 
-  // 回合计时（WT：每回合限时，时间到按得分判胜负）
-  if(state.mode===STATE.fight && !state.count && !f.roundDone && !p.roundDone){
+  // 回合计时（WT：每回合限时，时间到按得分判胜负；开局倒计时期间不走表）
+  if(state.mode===STATE.fight && !state.count && !f.roundDone && !p.roundDone && !introHold){
     state.roundTime -= dt;
     if(state.roundTime <= 0){
       state.roundTime = 0;
       // 时间到：得分高者胜；平局 AI 胜（WT 判优势方）
       if(scoreP > scoreA){ p.roundDone = true; roundWins++; sfx('win'); }
       else { f.roundDone = true; aiWins++; sfx('lose'); }
+      announce('时间到', 1.3, '#fbbf24');
       endRound();
     }
   }
 
   // AI 思考
-  if(state.mode===STATE.fight) aiThink(dt);
+  if(state.mode===STATE.fight && !introHold) aiThink(dt);
 }
 
 /* ---------- 回合流程（WT 三局两胜） ---------- */
@@ -887,11 +911,13 @@ let roundMsg = '', roundMsgT = 0, roundNum = 1;
 function startRound(){
   const hp = R().hp;
   player.reset(hp); ai.reset(hp);
+  player.hpDisp = hp; ai.hpDisp = hp;
   player.x = CX - 150; ai.x = CX + 150;
   player.face = 1; ai.face = -1;
   player.roundDone = false; ai.roundDone = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
+  state.intro = 3.2;                    // 开局 3-2-1 倒计时（双方冻结）
   state.roundTime = 60;                 // WT 单回合 2 分钟，游戏内 60 秒
   hitLocks.clear();
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;
@@ -902,8 +928,8 @@ function endRound(){
   state.count = null;
 }
 function afterRound(){
-  if(roundWins >= 2){ gameOver(true); return; }
-  if(aiWins >= 2){ gameOver(false); return; }
+  if(roundWins >= 3){ gameOver(true); return; }   // 五局三胜
+  if(aiWins >= 3){ gameOver(false); return; }
   roundNum++;
   startRound();
 }
@@ -913,7 +939,7 @@ function gameOver(win){
   $('endTitle').textContent = win ? '🎉 你赢了！' : '💀 被 AI 击败';
   $('endTitle').className = 'op-title ' + (win ? 'win' : 'lose');
   $('endSub').textContent = win
-    ? `你击败了 ${R().name} AI，三局两胜夺冠！试试更高段位，用旋风踢、飞踢打爆对手吧。`
+    ? `你击败了 ${R().name} AI，五局三胜夺冠！试试更高段位，用后踢、旋风踢、飞踢打爆对手吧。`
     : `${R().name} AI 太强了，再练练出招时机，小心别被 KO！`;
   $('stP').textContent = roundWins; $('stA').textContent = aiWins;
   $('stW').textContent = state.winStreak;
@@ -921,7 +947,7 @@ function gameOver(win){
   sfx(win ? 'win' : 'lose', .5);
 }
 function nextRank(){
-  if(roundWins>=2){   // 胜利：晋级下一段位
+  if(roundWins>=3){   // 胜利：晋级下一段位（五局三胜）
     if(rankIdx < RANKS.length-1){
       rankIdx++;
     } else {
@@ -936,10 +962,47 @@ function nextRank(){
 
 /* ---------- 绘制 ---------- */
 function drawGround(){
-  // 整屏清底（含 GROUND 以上区域），避免上一帧残影/重影
-  ctx.clearRect(0, 0, W, H);
+  // 整屏清底（含 GROUND 以上区域），避免上一帧残影/重影（扩边：震屏偏移时不露底）
+  ctx.clearRect(-40, -40, W + 80, H + 80);
   ctx.fillStyle = '#0a0f1e';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(-40, -40, W + 80, H + 80);
+  // —— 赛场氛围 ——
+  const s3 = SCALE();
+  // 顶部双锥光
+  for(const lx of [CX - COURT*.55, CX + COURT*.55]){
+    const gr = ctx.createLinearGradient(0, 0, 0, GROUND);
+    gr.addColorStop(0, 'rgba(130,175,255,.11)');
+    gr.addColorStop(1, 'rgba(130,175,255,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.moveTo(lx - 26, 0); ctx.lineTo(lx + 26, 0);
+    ctx.lineTo(lx + 150, GROUND); ctx.lineTo(lx - 150, GROUND);
+    ctx.closePath(); ctx.fill();
+  }
+  // 观众剪影（两排，伪随机高度，暗于背景）
+  ctx.fillStyle = 'rgba(4,7,15,.5)';
+  for(let i=0;i<Math.ceil(W/34)+1;i++){
+    const hx = i*34 - 10;
+    const hr = 11 + Math.sin(i*7.3)*3.5;
+    const hy = GROUND - 118*s3 - Math.abs(Math.sin(i*3.7))*10;
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(hx - hr, hy, hr*2, 30);
+  }
+  ctx.fillStyle = 'rgba(4,7,15,.62)';
+  for(let i=0;i<Math.ceil(W/28)+1;i++){
+    const hx = i*28 + 12;
+    const hr = 13 + Math.sin(i*5.1)*3;
+    const hy = GROUND - 92*s3 - Math.abs(Math.sin(i*2.9))*8;
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(hx - hr, hy, hr*2, 34);
+  }
+  // 地面光带（赛场地面泛光）
+  const fl = ctx.createLinearGradient(0, GROUND - 26*s3, 0, GROUND);
+  fl.addColorStop(0, 'rgba(34,211,238,0)');
+  fl.addColorStop(1, 'rgba(34,211,238,.09)');
+  ctx.fillStyle = fl;
+  ctx.fillRect(0, GROUND - 26*s3, W, 26*s3);
+
   // 中央场地线
   ctx.strokeStyle = 'rgba(34,211,238,.25)';
   ctx.lineWidth = 2;
@@ -1217,41 +1280,66 @@ function drawHUD(t){
   const s = SCALE();
   const barW = Math.min(280, W*.30), barH = 16*s, y = 30;
 
-  // 玩家
+  // 玩家 / AI 血条
   hpBar(CX - 30 - barW, y, barW, barH, player, true);
-  // AI
   hpBar(CX + 30, y, barW, barH, ai, false);
 
-  // 名字
-  ctx.font = `700 ${15*s}px sans-serif`; ctx.textAlign='left';
+  // 名字（含段位标签）
+  ctx.textAlign='left';
+  ctx.font = `800 ${15*s}px sans-serif`;
   ctx.fillStyle = '#67e8f9';
   ctx.fillText('你', CX - 30 - barW, y - 8);
-  ctx.textAlign='right'; ctx.fillStyle = '#ffb3c0';
-  ctx.fillText(`AI · ${rank.name}`, CX + 30 + barW, y - 8);
+  ctx.font = `600 ${10.5*s}px sans-serif`;
+  ctx.fillStyle = 'rgba(103,232,249,.75)';
+  ctx.fillText('挑战者', CX - 30 - barW + 26*s, y - 8);
+  ctx.textAlign='right';
+  ctx.font = `800 ${15*s}px sans-serif`;
+  ctx.fillStyle = '#ffb3c0';
+  ctx.fillText(`AI`, CX + 30 + barW - 34*s, y - 8);
+  ctx.font = `700 ${10.5*s}px sans-serif`;
+  ctx.fillStyle = rank.color;
+  ctx.fillText(rank.name, CX + 30 + barW, y - 8);
 
-  // 得分（WT 规则：拳1 踢2 踢头3 旋转+1）
+  // 得分（WT 规则）
   ctx.font = `900 ${20*s}px sans-serif`; ctx.textAlign='center';
   ctx.fillStyle = '#fbbf24';
   ctx.fillText(`${scoreP}`, CX - 30 - barW/2, y + 26*s);
   ctx.fillStyle = '#f97316';
   ctx.fillText(`${scoreA}`, CX + 30 + barW/2, y + 26*s);
+  ctx.font = `600 ${9.5*s}px sans-serif`;
+  ctx.fillStyle = 'rgba(147,163,199,.8)';
+  ctx.fillText('得分', CX - 30 - barW/2, y + 38*s);
+  ctx.fillText('得分', CX + 30 + barW/2, y + 38*s);
 
-  // 回合计时（WT：每回合限时）
+  // 回合计时（WT：每回合限时）——计时框
   const secs = Math.ceil(state.roundTime);
-  ctx.font = `900 ${15*s}px sans-serif`;
-  ctx.fillStyle = state.roundTime < 10 ? '#f87171' : 'rgba(255,255,255,.85)';
-  ctx.fillText(`⏱ ${secs}s`, CX, y + 18*s);
+  ctx.fillStyle = 'rgba(8,12,26,.8)';
+  roundRect(CX - 30*s, y + 4*s, 60*s, 26*s, 8*s);
+  ctx.strokeStyle = state.roundTime < 10 ? 'rgba(248,113,113,.6)' : 'rgba(147,163,199,.4)';
+  ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.font = `900 ${14*s}px sans-serif`;
+  ctx.fillStyle = state.roundTime < 10 ? '#f87171' : '#e8eefc';
+  ctx.fillText(`${secs}s`, CX, y + 22*s);
 
   // 回合信息（中央）
   ctx.textAlign='center';
   ctx.font = `900 ${16*s}px sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,.85)';
-  ctx.fillText(`第 ${roundNum} 回合`, CX, y + 44*s);
+  ctx.fillText(`第 ${roundNum} 回合`, CX, y + 52*s);
 
-  // 大比分
-  ctx.font = `700 ${13*s}px sans-serif`;
-  ctx.fillStyle = roundWins>aiWins ? '#fbbf24' : '#93a3c7';
-  ctx.fillText(`${roundWins} - ${aiWins}`, CX, y + 64*s);
+  // 五局三胜 · 回合点指示（左3玩家 / 右3 AI）
+  const dotY = y + 70*s;
+  for(let i=0;i<3;i++){
+    const pxd = CX - 46*s - i*16*s, axd = CX + 46*s + i*16*s;
+    ctx.beginPath(); ctx.arc(pxd, dotY, 4.5*s, 0, Math.PI*2);
+    ctx.fillStyle = i < roundWins ? '#fbbf24' : 'rgba(255,255,255,.15)';
+    ctx.fill();
+    if(i < roundWins){ ctx.strokeStyle = 'rgba(251,191,36,.5)'; ctx.lineWidth = 2*s; ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(axd, dotY, 4.5*s, 0, Math.PI*2);
+    ctx.fillStyle = i < aiWins ? '#f97316' : 'rgba(255,255,255,.15)';
+    ctx.fill();
+    if(i < aiWins){ ctx.strokeStyle = 'rgba(249,115,22,.5)'; ctx.lineWidth = 2*s; ctx.stroke(); }
+  }
 
   // 提示（触屏设备显示触屏技巧，桌面显示键盘操作）
   ctx.font = `500 ${11.5*s}px sans-serif`;
@@ -1265,7 +1353,7 @@ function drawHUD(t){
     ctx.font = `900 ${18*s}px sans-serif`;
     ctx.fillStyle = '#fbbf24';
     ctx.textAlign = 'center';
-    ctx.fillText(`连击 ×${player.combo}`, CX - 30 - barW/2, y + 92*s);
+    ctx.fillText(`连击 ×${player.combo}`, CX - 30 - barW/2, y + 96*s);
     ctx.globalAlpha = 1;
   }
 
@@ -1321,21 +1409,86 @@ function drawHUD(t){
     ctx.fillStyle = '#67e8f9';
     ctx.fillText('🦵 飞踢!', CX, H*.5);
   }
+
+  // 大字播报（K.O.! / 时间到）
+  if(bigMsg){
+    const k = 1 - bigMsg.t / bigMsg.dur;
+    const pop = k < .15 ? .4 + ease(k/.15)*.75 : 1.15 - Math.min(.15, (k-.15))*.5;
+    ctx.save();
+    ctx.translate(CX, H*.22);
+    ctx.scale(pop, pop);
+    ctx.globalAlpha = bigMsg.t < .3 ? clamp(bigMsg.t/.3, 0, 1) : 1;
+    ctx.font = `900 ${56*s}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 4*s;
+    ctx.strokeStyle = 'rgba(7,10,20,.65)';
+    ctx.strokeText(bigMsg.text, 0, 0);
+    ctx.fillStyle = bigMsg.color;
+    ctx.shadowColor = bigMsg.color;
+    ctx.shadowBlur = 30;
+    ctx.fillText(bigMsg.text, 0, 0);
+    ctx.restore();
+  }
+
+  // 开局倒计时（3 · 2 · 1 · 开战！）
+  if(state.intro > 0 && state.mode===STATE.fight){
+    ctx.textAlign = 'center';
+    const n = state.intro > 2.2 ? '3' : (state.intro > 1.2 ? '2' : (state.intro > .2 ? '1' : null));
+    ctx.save();
+    ctx.translate(CX, H*.42);
+    if(n){
+      const frac = state.intro % 1;
+      const pop = 1 + Math.max(0, frac - .72) * 2.2;
+      ctx.scale(pop, pop);
+      ctx.globalAlpha = clamp(frac*4 + .3, 0, 1);
+      ctx.font = `900 ${62*s}px sans-serif`;
+      ctx.fillStyle = '#fbbf24';
+      ctx.shadowColor = 'rgba(251,191,36,.65)'; ctx.shadowBlur = 26;
+      ctx.fillText(n, 0, 0);
+    } else {
+      ctx.font = `900 ${40*s}px sans-serif`;
+      ctx.fillStyle = '#67e8f9';
+      ctx.shadowColor = 'rgba(103,232,249,.7)'; ctx.shadowBlur = 26;
+      ctx.fillText('开战！', 0, 0);
+    }
+    ctx.restore();
+    ctx.font = `600 ${13*s}px sans-serif`;
+    ctx.fillStyle = 'rgba(232,238,252,.8)';
+    ctx.fillText('五局三胜 · WT 得分制', CX, H*.42 + 46*s);
+  }
 }
 
 function hpBar(x, y, w, h, f, isP){
   const pct = clamp(f.hp / f.maxHp, 0, 1);
-  // 底
-  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  const disp = clamp((f.hpDisp === undefined ? f.hp : f.hpDisp) / f.maxHp, 0, 1);
+  // 底槽（深色 + 描边）
+  ctx.fillStyle = 'rgba(8,12,26,.85)';
   roundRect(x, y, w, h, h/2);
-  // 血条
-  ctx.fillStyle = isP ? '#22d3ee' : '#ff3b5c';
-  roundRect(x, y, w*pct, h, h/2);
-  // 光晕
+  ctx.strokeStyle = 'rgba(147,163,199,.35)';
+  ctx.lineWidth = 1.5; ctx.stroke();
+  // 损伤延迟条（白色：缓动显示刚掉的部分）
+  if(disp > pct + .005){
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    roundRect(x + 1.5, y + 1.5, Math.max(0, w*disp - 3), h - 3, (h-3)/2);
+  }
+  // 当前血量（渐变 + 光晕）
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  if(isP){ grad.addColorStop(0, '#7dedff'); grad.addColorStop(1, '#0891b2'); }
+  else { grad.addColorStop(0, '#ff9db0'); grad.addColorStop(1, '#e11d48'); }
+  ctx.fillStyle = grad;
+  roundRect(x + 1.5, y + 1.5, Math.max(0, w*pct - 3), h - 3, (h-3)/2);
   ctx.shadowColor = isP ? '#22d3ee' : '#ff3b5c';
-  ctx.shadowBlur = 12;
-  roundRect(x, y, w*pct, h, h/2);
+  ctx.shadowBlur = 10;
+  roundRect(x + 1.5, y + 1.5, Math.max(0, w*pct - 3), h - 3, (h-3)/2);
   ctx.shadowBlur = 0;
+  // 顶部高光
+  ctx.fillStyle = 'rgba(255,255,255,.3)';
+  roundRect(x + 4, y + 2.5, Math.max(0, w*pct - 8), h*.3, h*.15);
+  // 25% 刻度线
+  ctx.strokeStyle = 'rgba(7,10,20,.5)'; ctx.lineWidth = 1;
+  for(let i=1;i<4;i++){
+    ctx.beginPath(); ctx.moveTo(x + w*i/4, y + 1); ctx.lineTo(x + w*i/4, y + h - 1); ctx.stroke();
+  }
 }
 
 /* ---------- 主循环 ---------- */
@@ -1348,10 +1501,16 @@ function frame(ts){
   const t = ts/1000;
   try {
     update(dt, t);
+    ctx.save();
+    if(shakeT > 0){
+      const k = shakeT / shakeDur;
+      ctx.translate(rand(-1,1)*shakeAmp*k, rand(-1,1)*shakeAmp*k);
+    }
     drawGround();
     // 绘制顺序：AI 在前、玩家在后（保证视觉层次）
     if(ai.x > player.x){ drawFighter(player, t, dt); drawFighter(ai, t, dt); }
     else { drawFighter(ai, t, dt); drawFighter(player, t, dt); }
+    ctx.restore();
     drawHUD(t);
     // 结束延时后切换
     if(state.mode===STATE.over && state.overTimer>0){
@@ -1384,7 +1543,7 @@ function showHome(){
 $('btn-start').addEventListener('click', showGame);
 $('btn-re').addEventListener('click', () => {
   $('endPanel').classList.remove('show');
-  if(roundWins>=2 || aiWins>=2) nextRank();
+  if(roundWins>=3 || aiWins>=3) nextRank();
   else startRound();
 });
 $('btn-home').addEventListener('click', showHome);
