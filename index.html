@@ -139,7 +139,7 @@
       <span class="badge hot">跆拳道社 × AI</span>
     </div>
     <h1 class="logo">跆拳道 · AI 对战</h1>
-    <p class="sub">操控小人，挑战 AI 跆拳道高手！三局两胜 KO 制。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，一招一式都是科技与热血的碰撞。</p>
+    <p class="sub">操控小人，挑战 AI 跆拳道高手！按 <b>WT 竞技规则</b>计分：拳躯干 1 分 · 踢躯干 2 分 · 踢头 3 分 · 旋转踢 +1，三局两胜，击倒后 8 秒读秒。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，一招一式都是科技与热血的碰撞。</p>
 
     <div class="perks">
       <div class="perk"><div class="icon">🥋</div><div class="t">AI 对手</div><div class="d">会攻防、会闪避的 AI 跆拳道高手，从白带到黑带逐个挑战</div></div>
@@ -149,7 +149,8 @@
 
     <div class="howto">
       <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">W</span>/<span class="keycap">Space</span> 跳 · <span class="keycap">J</span> 拳 · <span class="keycap">K</span> 踢 · <span class="keycap">L</span> 挡</span>
-      <span class="k">🌀 炫技：空中踢=飞踢 · 连按 <span class="keycap">K</span>=旋风踢 · 连续命中=连招加伤</span>
+      <span class="k">🌀 炫技：空中踢=飞踢 · 连按 <span class="keycap">K</span>=旋风踢(撤步转体360°横扫) · 连续命中=连招加伤</span>
+      <span class="k">🥊 WT 计分：拳1 · 踢2 · 踢头3 · 旋转踢+1 · 击倒后 8 秒读秒，狂按 <span class="keycap">J/K</span> 起身</span>
       <span class="k">📱 触屏：屏幕按钮直接点</span>
     </div>
 
@@ -302,6 +303,7 @@ function isDown(dir){
 }
 const jumpBuf = { p:0, a:0 };        // 跳跃缓冲（触屏/连按）
 function setJump(side){ jumpBuf[side] = .16; }
+let riseTapP = 0;                    // 玩家被读秒时，按 J/K/触屏攻击键加速起身
 
 /* 格挡需要按住：L 键 / 触屏按钮按住期间持续保持 block 状态 */
 function holdBlock(v){
@@ -318,8 +320,8 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   keys[k] = true;
   if(['a','d','w','j','k','l',' '].includes(k)) e.preventDefault();
-  if(k === 'j') tryPunch(player);
-  if(k === 'k' && !e.repeat) tryKick(player);       // e.repeat 过滤按住连发
+  if(k === 'j'){ tryPunch(player); if(state.count==='p') riseTapP = Math.max(riseTapP, .25); }
+  if(k === 'k' && !e.repeat){ tryKick(player); if(state.count==='p') riseTapP = Math.max(riseTapP, .3); }       // e.repeat 过滤按住连发
   if(k === ' ' || k === 'w' || k === 'arrowup') setJump('p');
   if(k === 'l') holdBlock(true);
 });
@@ -351,7 +353,7 @@ placeTouch();
 
 /* ---------- 游戏常量 ---------- */
 const STATE = { menu:'menu', fight:'fight', over:'over' };
-const state = { mode:STATE.menu, overTimer:0, winStreak:0 };
+const state = { mode:STATE.menu, overTimer:0, winStreak:0, roundTime:60, count:null, countNum:8, countT:0 };
 
 const RANKS = [
   { name:'白带', color:'#e8eefc', ai:0.32, speed:0.9, hp:90,  tag:'新手 AI' },
@@ -362,6 +364,7 @@ const RANKS = [
 ];
 let rankIdx = 0;
 let roundWins = 0, aiWins = 0;   // 大比分（三局两胜）
+let scoreP = 0, scoreA = 0;      // 回合内得分（WT 竞技规则）
 
 /* ---------- 角色类 ---------- */
 class Fighter {
@@ -387,8 +390,16 @@ class Fighter {
     this.cast = ''; this.castT = 0;           // 特技状态（spinx 旋风踢）
     this.cyc = 0;                             // 旋风踢旋转角（绘制用）
     this.flyKick = false;                     // 飞踢标记
+    this.rise = 0; this.riseSpeed = 0;        // 读秒起身进度 / 速率
+    this.pops = [];                           // 命中飘分（+1/+2/+3）
+    this.spinP = 0;                           // 旋风踢：已转过的角度（度）
+    this.spinDir = 1;                         // 旋风踢：旋转方向（绕身体纵轴）
+    this.stepBack = 0;                        // 旋风踢：撤步转身蓄力（背对对手）
+    this.windup = 0;                          // 旋风踢：蓄力计时
+    this.phase = 0;                           // 旋风踢：0蓄力 1转体 2踢出 3收势 4结束
+    this.lastPt = 0; this.lastPtT = 0;        // 最近命中得分（飘分显示）
   }
-  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; }
   get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'||this.cast!==''; }
   get grounded(){ return this.kd<=0 && !this.airborne; }
   canAct(){ return this.kd<=0 && this.freeze<=0 && this.state==='idle' && this.cast===''; }
@@ -433,24 +444,28 @@ function tryKick(f){
   if(f.state==='block') f.holdBlock = false;
   f.state = 'kick'; f.stT = 0; f.anim = 1.6; f.cool = 0.85;
   sfx('kick', .3);
-  setTimeout(() => { if(f.state==='kick') f.state='idle'; }, 500);
+  setTimeout(() => { if(f.state==='kick' && f.cast!=='spinx') f.state='idle'; }, 500);
 }
 function startFlyingKick(f){
-  f.state = 'kick'; f.stT = 0; f.anim = 1.9; f.cool = 1.0;
-  f.jumpV = 380; f.jumpH = f.face * 460; f.airborne = true;   // 跃起前冲
+  // 飞踢：助跑起跳 → 腾空屈膝上提 → 空中出腿前伸 → 落地
+  f.state = 'kick'; f.stT = 0; f.anim = 1.9; f.cool = 1.1;
+  f.jumpV = 460; f.jumpH = f.face * 520; f.airborne = true;   // 跃起前冲（弧线更高）
   f.flyKick = true;   // 标记飞踢
   sfx('kick', .4);
-  setTimeout(() => { if(f.state==='kick' && !f.flyKick) f.state='idle'; }, 420);
+  setTimeout(() => { if(f.state==='kick' && !f.flyKick) f.state='idle'; }, 460);
 }
 function startSpinx(f){
-  f.cast = 'spinx'; f.castT = .45; f.cyc = 0;
-  f.cool = 1.05;
+  // 旋风踢（标准动作）：撤步转身蓄力（背对对手）→ 转体 360° 后腿横扫前旋踢 → 落地
+  f.cast = 'spinx'; f.castT = 0;          // 分阶段：0蓄力 → 1旋转 → 2踢出
+  f.state = 'kick'; f.stT = 0;            // 视为踢击（得分按踢算）
+  f.cyc = 0; f.spinP = 0;
+  f.stepBack = 40;                        // 撤步距离（先向后退半步）
+  f.windup = 0;                           // 蓄力计时
+  f.spinDir = f.face;                     // 旋转方向 = 朝向
+  f.cool = 1.1;
   hitLocks.delete(f);   // 旋风踢是独立新动作，允许重新判定命中
   sfx('kick', .4);
-  setTimeout(() => {
-    if(f.cast==='spinx'){ f.cast=''; f.castT=0; }
-    if(f.state==='kick') f.state='idle';
-  }, 480);
+  // 蓄力阶段结束 → 进入旋转阶段（在 update 里推进）
 }
 function tryBlock(f, dur=0.5){
   if(!f.canAct()) return;
@@ -472,13 +487,29 @@ function resolveHit(f, t){
   combo++;
   f.combo = combo; f.comboT = 1.0;
 
+  // ---- WT 竞技得分规则 ----
+  // 拳击躯干 1 分；踢击躯干 2 分；踢击头部 3 分；旋转踢 +1 分加成
+  // 头部判定：防守方处于跳起状态（y>0）才算踢头（真实规则：高度决定，非随机）
+  const isKick = f.state==='kick';
+  const isSpinning = f.cast==='spinx';
+  const toHead = isKick && t.airborne;
+  let pt = 0;
+  if(isKick){
+    pt = toHead ? 3 : 2;
+    if(isSpinning) pt += 1;            // 旋转踢加成
+  } else {
+    pt = 1;                            // 拳击躯干
+  }
+  f.lastPt = pt; f.lastPtT = .9;       // 飘分显示
+
   const base = f.state==='kick' ? f.attack*1.6 : f.attack;
   let dmg = base * (1 + Math.min(combo-1, 3) * 0.14);   // 最多叠 3 段
   if(f.cast==='spinx') dmg = base * 1.9;                 // 旋风踢高伤
   if(f.flyKick) dmg = base * 1.35;                       // 飞踢加成
 
   if(t.state === 'block' && t.grounded){
-    // 格挡成功（连击重置）
+    // 格挡成功（连击重置，不算分）
+    f.lastPt = 0; f.lastPtT = 0;
     f.combo = 0; f.comboT = 0;
     sfx('guard', .3);
     burst(t, 8, '#fbbf24', 4);
@@ -486,6 +517,8 @@ function resolveHit(f, t){
     return;
   }
   // 命中
+  // 得分入账（三局两胜：按 WT 规则累计分数）
+  if(f.side==='p') scoreP += pt; else scoreA += pt;
   t.freeze = .32;
   t.flash = .2;
   t.hp -= dmg;
@@ -500,10 +533,18 @@ function resolveHit(f, t){
 
 function knockdown(t, f){
   t.hp = 0;
-  t.kd = 1.6; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
+  t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
+  t.rise = 0; t.riseSpeed = 0;
   burst(t, 30, '#ff3b5c', 8);
   sfx('ko', .6);
   t.vx = f.face * 9;
+  // 进入 8 秒读秒（WT 规则：被击倒后裁判读秒，数到 8 未起身即 KO 判负）
+  state.count = t.side;      // 'p' 玩家被读秒 / 'a' AI 被读秒
+  state.countNum = 8;
+  state.countT = 0;
+  // 读秒期间对方回到角落
+  const winner = (t.side==='p') ? ai : player;
+  winner.vx = -winner.face * 40;
 }
 
 /* ---------- AI 大脑 ---------- */
@@ -567,19 +608,44 @@ function aiThink(dt){
 /* ---------- 更新 ---------- */
 let last = 0, hitLocks = new Set();
 function update(dt, t){
+  if(window.__pause) return;   // 调试暂停（浏览器自动化用）
   const p = player, f = ai;
 
   // 通用物理（倒地角色只计时不行动）
   for(const g of [p, f]){
     if(g.kd>0){
+      // WT：击倒后进入 8 秒读秒，读秒内可起身（rise 爬升到 1 即站起）
       g.kdT += dt;
-      if(g.kdT >= g.kd){
-        // 起身
-        g.kd = 0; g.kdT = 0; g.hp = Math.max(g.hp, 1); g.state='idle'; g.freeze=.3;
-        g.airborne = false; g.jumpV = 0; g.jumpH = 0;
-      } else {
-        continue;   // 仍在倒地，跳过行动处理
+      // 读秒期间对手自动后撤到角落，不攻击
+      if(state.count && state.countT > 1){
+        const vic = (state.count==='p') ? p : f;
+        const atk = (state.count==='p') ? f : p;
+        atk.vx = -atk.face * 60;
+        atk.stepT = 0;
       }
+      if(g.rise < 1){
+        // 读秒计时（WT：裁判读秒 8 秒，8 秒内站起即继续，站不起来即 KO）
+        // 自动缓慢爬升 + 读秒期间按 J/K/触屏攻击键加速起身
+        g.rise += dt * (1/10);                   // 纯自动 10 秒才能起身 → 不按键会被 KO
+        if(g.side==='p' && (riseTapP > 0)){ g.rise += riseTapP; riseTapP = 0; }
+        if(g.side==='a') g.rise += dt * R().ai * 0.038;  // AI 起身速度随段位：低段位可能读秒不及被判 KO，高段位读秒内站起
+        g.rise = Math.min(1, g.rise);
+        // 读秒报数
+        const newNum = Math.ceil(8 - g.kdT);
+        if(newNum < state.countNum && newNum >= 1){ state.countNum = newNum; sfx('ko', .35); }
+        if(g.rise >= 1){
+          // 成功起身（读秒内站起）
+          g.kd = 0; g.kdT = 0; g.state='idle'; g.freeze=.5; g.rise=0; g.riseSpeed=0;
+          g.airborne=false; g.jumpV=0; g.jumpH=0;
+          if(state.count === g.side) state.count = null;   // 读秒结束
+        } else if(g.kdT >= 8){
+          // 数到 8 未起身 → KO 判负
+          g.kd = 0; g.kdT = 0; g.state='kd'; g.rise = 1;
+          if(state.count === g.side) state.count = null;
+        }
+      }
+      // 若已判 KO（rise>=1 且 kd 已清零），正常退出
+      if(g.kd <= 0) continue;
     }
     // 跳跃物理
     if(g.airborne){
@@ -606,13 +672,36 @@ function update(dt, t){
     // 踢击缓冲（连按→旋风踢）
     g.kickBufT -= dt;
     if(g.kickBufT <= 0) g.kickBuf = [];
-    // 旋风踢推进
+    // 旋风踢分阶段推进：0 蓄力撤步转身 → 1 转体 360° → 2 后腿横扫踢出 → 3 收势
     if(g.cast==='spinx'){
-      g.cyc += dt * (g.castT > 0 ? 22 : 0);   // 旋转
-      g.castT -= dt;
-      if(g.castT <= 0){ g.cast=''; g.castT=0; }
-      // 旋风踢前冲
-      if(g.cast==='spinx') g.vx = g.face * 260;
+      if(g.phase === undefined) g.phase = 0;
+      if(g.phase === 0){
+        // 蓄力：撤步转身，背对对手（cyc 0→0.5 = 转 180°）
+        g.windup += dt;
+        g.cyc = g.windup / .22 * .5;
+        g.vx = lerp(g.vx, -g.face * 120, dt*6);   // 向后撤步
+        if(g.windup > .22){ g.phase = 1; }
+      } else if(g.phase === 1){
+        // 转体 360°：cyc 0.5→1（约 0.4s 转完），后腿抬起
+        g.cyc += dt * (0.5 / .4);
+        g.spinP += dt * (360 / .4);                // 记录转体角度（得分判定用）
+        g.vx = g.face * 40;
+        if(g.cyc >= 1){ g.cyc = 1; g.phase = 2; g.stT = 0; }
+      } else if(g.phase === 2){
+        // 后腿横扫踢出（前旋踢）——命中窗口
+        g.stT += dt;
+        g.vx = g.face * 300;                       // 前冲踢出
+        // 命中判定由外部 hitting 逻辑触发（cast==='spinx' && phase===2）
+        if(g.stT > .22) g.phase = 3;
+      } else if(g.phase === 3){
+        // 收势落地
+        g.vx = lerp(g.vx, 0, dt*4);
+        g.phase = 4;
+      } else {
+        // 完全结束：cyc 1→0（回到正常站立姿态）
+        g.cyc = lerp(g.cyc, 0, dt*6);
+        if(Math.abs(g.cyc) < .06){ g.cast=''; g.castT=0; g.phase=0; g.spinP=0; }
+      }
     }
     // 粒子
     for(let i=g.particle.length-1;i>=0;i--){
@@ -620,12 +709,30 @@ function update(dt, t){
       pt.life -= dt; pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.vy += 15*dt;
       if(pt.life<=0) g.particle.splice(i,1);
     }
+    // 命中飘分
+    if(g.lastPtT !== undefined){
+      g.lastPtT -= dt;
+      if(g.lastPtT > 0 && g.pops.length < 4){
+        // 飘分由 drawHUD 读取显示
+      } else if(g.lastPtT <= 0){ g.lastPtT = 0; }
+    }
   }
 
-  // 回合判定要在起身之前：倒地中立即结算
-  if(state.mode===STATE.fight){
-    if(f.kd>0 && !f.roundDone){ f.roundDone = true; roundWins++; sfx('win'); endRound(); }
-    else if(p.kd>0 && !p.roundDone){ p.roundDone = true; aiWins++; sfx('lose'); endRound(); }
+  // KO 读秒流程（在通用物理后统一处理）
+  if(state.mode===STATE.fight && state.count){
+    state.countT += dt;
+    const vic = (state.count==='p') ? p : f;
+    const atk = (state.count==='p') ? f : p;
+    if(vic.rise >= 1 && vic.kd <= 0){
+      // 已起身或已 KO，读秒结束
+      state.count = null;
+    }
+  }
+
+  // 回合判定：分数制 + KO（读秒结束未起身即判负）
+  if(state.mode===STATE.fight && !state.count){
+    if(f.kd>0 || f.rise>=1){ if(!f.roundDone){ f.roundDone = true; roundWins++; sfx('win'); endRound(); } }
+    else if(p.kd>0 || p.rise>=1){ if(!p.roundDone){ p.roundDone = true; aiWins++; sfx('lose'); endRound(); } }
   }
 
   // 玩家输入（仅可行动时）
@@ -648,16 +755,19 @@ function update(dt, t){
     jumpBuf.p = 0;
   }
 
-  // 出招命中判定
+  // 出招命中判定（读秒期间不判定，WT 规则：击倒后读秒，对方不得进攻）
   const checks = [
     { f:p, t:f }, { f:f, t:p }
   ];
   for(const c of checks){
+    if(state.count) break;
     const g = c.f;
-    const hitting = g.cast==='spinx' || g.state==='attack' || g.state==='kick';
+    // 旋风踢只在"踢出"阶段（phase 2）判定命中
+    const spinxHit = g.cast==='spinx' && g.phase === 2;
+    const hitting = spinxHit || g.state==='attack' || g.state==='kick';
     if(hitting && !hitLocks.has(g)){
-      // 出招前摇后判定
-      const delay = g.cast==='spinx' ? .05 : (g.state==='kick' ? .08 : .05);
+      // 出招前摇后判定（飞踢在空中前冲后判定，更真实）
+      const delay = g.cast==='spinx' ? .04 : (g.state==='kick' ? (g.flyKick ? .18 : .08) : .05);
       if(g.stT > delay){
         resolveHit(g, c.t);
         hitLocks.add(g);
@@ -676,11 +786,23 @@ function update(dt, t){
     if(p.x < f.x){ p.x = f.x - gap; } else { p.x = f.x + gap; }
   }
 
+  // 回合计时（WT：每回合限时，时间到按得分判胜负）
+  if(state.mode===STATE.fight && !state.count && !f.roundDone && !p.roundDone){
+    state.roundTime -= dt;
+    if(state.roundTime <= 0){
+      state.roundTime = 0;
+      // 时间到：得分高者胜；平局 AI 胜（WT 判优势方）
+      if(scoreP > scoreA){ p.roundDone = true; roundWins++; sfx('win'); }
+      else { f.roundDone = true; aiWins++; sfx('lose'); }
+      endRound();
+    }
+  }
+
   // AI 思考
   if(state.mode===STATE.fight) aiThink(dt);
 }
 
-/* ---------- 回合流程 ---------- */
+/* ---------- 回合流程（WT 三局两胜） ---------- */
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
 function startRound(){
   const hp = R().hp;
@@ -688,12 +810,16 @@ function startRound(){
   player.x = CX - 150; ai.x = CX + 150;
   player.face = 1; ai.face = -1;
   player.roundDone = false; ai.roundDone = false;
+  scoreP = 0; scoreA = 0;               // 回合得分清零
+  state.count = null; state.countT = 0; state.countNum = 8;
+  state.roundTime = 60;                 // WT 单回合 2 分钟，游戏内 60 秒
   hitLocks.clear();
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;
   state.mode = STATE.fight;
 }
 function endRound(){
   state.mode = STATE.over; state.overTimer = 1.6;
+  state.count = null;
 }
 function afterRound(){
   if(roundWins >= 2){ gameOver(true); return; }
@@ -707,8 +833,8 @@ function gameOver(win){
   $('endTitle').textContent = win ? '🎉 你赢了！' : '💀 被 AI 击败';
   $('endTitle').className = 'op-title ' + (win ? 'win' : 'lose');
   $('endSub').textContent = win
-    ? `你击败了 ${R().name} AI！跆拳道段位提升，感受 AI 的厉害了吧？`
-    : `${R().name} AI 太强了，再练练出招时机吧！`;
+    ? `你击败了 ${R().name} AI，三局两胜夺冠！试试更高段位，用旋风踢、飞踢打爆对手吧。`
+    : `${R().name} AI 太强了，再练练出招时机，小心别被 KO！`;
   $('stP').textContent = roundWins; $('stA').textContent = aiWins;
   $('stW').textContent = state.winStreak;
   panel.classList.add('show');
@@ -761,29 +887,45 @@ function drawFighter(f, t, dt){
   const colorDark = isPlayer ? '#0ea5e9' : '#e11d48';
   const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,59,92,';
 
-  // 旋风踢：整身旋转 + 残影
-  if(f.cast==='spinx'){
-    // 残影（拖着画 3 个淡影）
+  // 旋风踢（标准 Tornado Kick）：撤步转身蓄力 → 以支撑脚为轴转体 → 后腿从后向前画弧横扫（前旋踢）
+  const isSpinx = f.cast==='spinx';
+  if(isSpinx){
+    // 侧视表达绕纵轴转体：镜像翻转 + 轻微 z 轴倾斜（示意旋转动感）
+    // cyc: 0 正立 → 0.5 撤步转身背对 → 1 转完一圈回到正面
+    if(f.phase === 0){
+      // 蓄力撤步：身体后转 180°（0→0.5，镜像 + 微倾）
+      const flip = f.cyc > .25 ? -1 : 1;
+      ctx.scale(flip, 1);
+      ctx.rotate(-f.face * (f.cyc < .25 ? f.cyc * 1.2 : (f.cyc - .25) * 0.8));
+    } else if(f.phase === 1){
+      // 转体：cyc 0.5→1，背对状态快速转回正面（镜像 + 小角度倾斜 + 残影）
+      const flip = f.cyc < .75 ? -1 : 1;
+      ctx.scale(flip, 1);
+      ctx.rotate(-f.face * 0.22);            // 转体时轻微侧倾（动感，非躺倒）
+    } else if(f.phase === 2){
+      // 踢出：回到正面，微倾收尾
+      ctx.rotate(f.face * 0.18);
+    }
+    // 残影（拖尾画 3 个淡影，表达快速转体轨迹）
     ctx.save();
-    ctx.globalAlpha = .18;
+    ctx.globalAlpha = .14;
     for(let i=1;i<=3;i++){
-      const a = -f.cyc*1.2 - i*.8;
       ctx.save();
-      ctx.translate(-f.face*i*7*s, 0);
-      ctx.rotate(a*f.face);
+      ctx.translate(-f.face*i*6*s, 0);
+      ctx.rotate(-f.cyc*0.8 - i*.5);
       ctx.fillStyle = colorGlow + '.4)';
       ctx.fillRect(-12*s, -86*s, 24*s, 86*s);
       ctx.restore();
     }
     ctx.restore();
-    ctx.rotate(f.cyc * f.face * 1.4);
   }
 
-  // 倒地：身体向被击方向倒下、贴地（不移开地面）
-  if(f.kd>0){
-    const prog = ease(Math.min(1, f.kdT/.25));
-    ctx.translate(f.face * prog * 10*s, 0);
-    ctx.rotate(-f.face * prog * 1.4);
+  // 倒地/读秒：身体倒下，读秒时随 rise 缓慢半起身
+  if(f.kd>0 || f.rise>0){
+    const prog = f.rise>0 ? (f.rise) : ease(Math.min(1, f.kdT/.25));
+    ctx.translate(f.face * (1-prog) * 10*s, 0);
+    ctx.rotate(-f.face * (1-prog) * 1.4);
+    if(f.rise>0) ctx.translate(0, -prog * 20*s);   // 读秒起身：身体抬升
   }
 
   const bob = f.state==='idle' && f.cast==='' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
@@ -798,6 +940,21 @@ function drawFighter(f, t, dt){
     if(f.flyKick) legA = f.face * 1.7;        // 飞踢：腿前伸
     else legA = f.face * (f.stT<.2 ? -1.2 : 2.2);
   }
+  // 旋风踢：后腿画弧横扫（前旋踢）—— 从后收腿 → 绕轴横扫到前
+  let spinLeg = 0;
+  if(isSpinx && f.phase >= 1){
+    const p = clamp((f.spinP) / 360, 0, 1);   // 转体进度 0→1
+    if(f.phase === 1){
+      // 转体：后腿水平抬起前伸（横扫轨迹），随转体画弧
+      spinLeg = f.face * (1.4 * Math.sin(p * Math.PI));
+    } else if(f.phase === 2){
+      // 踢出：腿保持水平横扫前伸（前旋踢）
+      spinLeg = f.face * 1.35;
+    } else {
+      // 收势：腿回落
+      spinLeg = f.face * (1.35 - clamp(f.stT, 0, .3) * 4);
+    }
+  }
   const swing = Math.sin(f.stepT*8) * .35;   // 行走摆腿
 
   // 后腿（支撑）
@@ -809,7 +966,7 @@ function drawFighter(f, t, dt){
   ctx.restore();
   // 前腿（踢击腿）
   ctx.save(); ctx.translate(4*s, hipY);
-  ctx.rotate(f.state==='kick' ? -legA*.9 : swing*.7);
+  ctx.rotate(isSpinx ? spinLeg : (f.state==='kick' ? -legA*.9 : swing*.7));
   ctx.strokeStyle = colorDark; ctx.lineWidth = 9*s; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 42*s); ctx.stroke();
   ctx.fillStyle = colorGlow + '.9)';
@@ -833,10 +990,11 @@ function drawFighter(f, t, dt){
   ctx.beginPath(); ctx.arc(f.face*4.5*s, headY - 1*s, 2.8*s, 0, Math.PI*2); ctx.fill();
 
   // 手臂
-  if(f.cast==='spinx'){
-    // 旋风踢：双臂甩开（跟随旋转）
+  if(isSpinx){
+    // 旋风踢：双臂甩开，跟随旋转（平衡感）
     ctx.save(); ctx.translate(0, shY + 12*s);
-    ctx.rotate(1.1 * f.face);
+    const armA = f.phase===0 ? 1.1*f.face : (f.phase>=2 ? -0.4*f.face : 1.6*f.face);
+    ctx.rotate(armA);
     ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(24*s, -6*s); ctx.stroke();
     ctx.fillStyle = colorGlow + '.9)';
@@ -870,12 +1028,22 @@ function drawFighter(f, t, dt){
     ctx.restore();
   }
 
-  // 旋风踢：脚下旋转光弧
-  if(f.cast==='spinx'){
+  // 旋风踢：脚下旋转光弧（转体时金色弧光）
+  if(isSpinx){
+    // phase1 转体：光弧随转体扫一大圈；phase2+ 踢出：光弧定格在身前
+    const arcStart = f.phase===0 ? -f.cyc*1.5 : (f.phase===1 ? -1.5 - f.spinP/40 : 2.2 - f.spinP/40*0.3);
     ctx.strokeStyle = 'rgba(251,191,36,.8)';
     ctx.lineWidth = 3*s; ctx.lineCap='round';
     ctx.beginPath();
-    ctx.arc(0, 0, 44*s, -f.cyc*1.5, -f.cyc*1.5 + 2.2);
+    ctx.arc(0, 0, 44*s, arcStart, arcStart + 2.2);
+    ctx.stroke();
+  }
+  // 飞踢：空中前冲拖尾（金色线迹）
+  if(f.flyKick && f.airborne){
+    ctx.strokeStyle = 'rgba(251,191,36,.5)';
+    ctx.lineWidth = 2.5*s; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-f.face * 30*s, -8*s); ctx.lineTo(0, 0);
     ctx.stroke();
   }
 
@@ -913,11 +1081,24 @@ function drawHUD(t){
   ctx.textAlign='right'; ctx.fillStyle = '#ffb3c0';
   ctx.fillText(`AI · ${rank.name}`, CX + 30 + barW, y - 8);
 
+  // 得分（WT 规则：拳1 踢2 踢头3 旋转+1）
+  ctx.font = `900 ${20*s}px sans-serif`; ctx.textAlign='center';
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText(`${scoreP}`, CX - 30 - barW/2, y + 26*s);
+  ctx.fillStyle = '#f97316';
+  ctx.fillText(`${scoreA}`, CX + 30 + barW/2, y + 26*s);
+
+  // 回合计时（WT：每回合限时）
+  const secs = Math.ceil(state.roundTime);
+  ctx.font = `900 ${15*s}px sans-serif`;
+  ctx.fillStyle = state.roundTime < 10 ? '#f87171' : 'rgba(255,255,255,.85)';
+  ctx.fillText(`⏱ ${secs}s`, CX, y + 18*s);
+
   // 回合信息（中央）
   ctx.textAlign='center';
-  ctx.font = `900 ${22*s}px sans-serif`;
+  ctx.font = `900 ${16*s}px sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,.85)';
-  ctx.fillText(`第 ${roundNum} 回合`, CX, y + 42*s);
+  ctx.fillText(`第 ${roundNum} 回合`, CX, y + 44*s);
 
   // 大比分
   ctx.font = `700 ${13*s}px sans-serif`;
@@ -936,6 +1117,32 @@ function drawHUD(t){
     ctx.fillStyle = '#fbbf24';
     ctx.textAlign = 'center';
     ctx.fillText(`连击 ×${player.combo}`, CX - 30 - barW/2, y + 92*s);
+    ctx.globalAlpha = 1;
+  }
+
+  // 命中飘分（+1/+2/+3）
+  for(const g of [player, ai]){
+    if(g.lastPt && g.lastPtT > 0){
+      ctx.globalAlpha = clamp(g.lastPtT*1.5, 0, 1);
+      ctx.font = `900 ${22*s}px sans-serif`;
+      ctx.fillStyle = g.side==='p' ? '#fbbf24' : '#f97316';
+      ctx.textAlign = 'center';
+      ctx.fillText(`+${g.lastPt}`, g.x, GROUND - g.h - 20*s - (1-g.lastPtT)*30*s);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // KO 读秒大数字（WT：裁判读秒）
+  if(state.count){
+    const vic = (state.count==='p') ? player : ai;
+    ctx.globalAlpha = .95;
+    ctx.font = `900 ${48*s}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = state.countNum<=1 ? '#f87171' : '#fbbf24';
+    ctx.fillText(`读秒 ${state.countNum}`, CX, H*.32);
+    ctx.font = `600 ${14*s}px sans-serif`;
+    ctx.fillStyle = 'rgba(232,238,252,.9)';
+    ctx.fillText(state.count==='p' ? '（快速连按 J/K 起身！）' : 'AI 正在起身…', CX, H*.32 + 26*s);
     ctx.globalAlpha = 1;
   }
 
