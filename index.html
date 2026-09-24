@@ -931,14 +931,19 @@ function drawFighter(f, t, dt){
   const bob = f.state==='idle' && f.cast==='' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
   ctx.translate(0, bob);   // 呼吸浮动（整身）
 
+  // 朝向镜像：以下身体部件统一按 face 水平翻转
+  //（修复向左移动/出招时腿臂摆动、出拳方向不镜像的"往左顿"问题）
+  ctx.save();
+  ctx.scale(f.face, 1);
+
   // —— 人体比例（脚底 y=0 贴地，向上为负）——
   const hipY = -46*s, shY = -86*s;           // 髋部 / 肩部
   const headR = 12*s, headY = -100*s;        // 头
   // 踢腿：横踢 / 飞踢（空中前伸）/ 旋风踢（旋转由整身带动）
   let legA = 0;
   if(f.state==='kick'){
-    if(f.flyKick) legA = f.face * 1.7;        // 飞踢：腿前伸
-    else legA = f.face * (f.stT<.2 ? -1.2 : 2.2);
+    if(f.flyKick) legA = 1.7;        // 飞踢：腿前伸
+    else legA = (f.stT<.2 ? -1.2 : 2.2);
   }
   // 旋风踢：后腿画弧横扫（前旋踢）—— 从后收腿 → 绕轴横扫到前
   let spinLeg = 0;
@@ -946,13 +951,13 @@ function drawFighter(f, t, dt){
     const p = clamp((f.spinP) / 360, 0, 1);   // 转体进度 0→1
     if(f.phase === 1){
       // 转体：后腿水平抬起前伸（横扫轨迹），随转体画弧
-      spinLeg = f.face * (1.4 * Math.sin(p * Math.PI));
+      spinLeg = 1.4 * Math.sin(p * Math.PI);
     } else if(f.phase === 2){
       // 踢出：腿保持水平横扫前伸（前旋踢）
-      spinLeg = f.face * 1.35;
+      spinLeg = 1.35;
     } else {
       // 收势：腿回落
-      spinLeg = f.face * (1.35 - clamp(f.stT, 0, .3) * 4);
+      spinLeg = 1.35 - clamp(f.stT, 0, .3) * 4;
     }
   }
   const swing = Math.sin(f.stepT*8) * .35;   // 行走摆腿
@@ -987,13 +992,13 @@ function drawFighter(f, t, dt){
   ctx.fillStyle = '#fbbf24';
   ctx.fillRect(-headR, headY - 2*s, headR*2, 3.6*s);
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(f.face*4.5*s, headY - 1*s, 2.8*s, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4.5*s, headY - 1*s, 2.8*s, 0, Math.PI*2); ctx.fill();
 
   // 手臂
   if(isSpinx){
     // 旋风踢：双臂甩开，跟随旋转（平衡感）
     ctx.save(); ctx.translate(0, shY + 12*s);
-    const armA = f.phase===0 ? 1.1*f.face : (f.phase>=2 ? -0.4*f.face : 1.6*f.face);
+    const armA = f.phase===0 ? 1.1 : (f.phase>=2 ? -0.4 : 1.6);
     ctx.rotate(armA);
     ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(24*s, -6*s); ctx.stroke();
@@ -1002,16 +1007,16 @@ function drawFighter(f, t, dt){
     ctx.restore();
   } else if(f.state==='block'){
     // 格挡：前臂横挡在胸前
-    ctx.save(); ctx.translate(f.face*6*s, shY + 16*s);
+    ctx.save(); ctx.translate(6*s, shY + 16*s);
     ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 9*s; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-6*s, 4*s); ctx.lineTo(f.face*20*s, 4*s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6*s, 4*s); ctx.lineTo(20*s, 4*s); ctx.stroke();
     ctx.fillStyle = colorGlow + '.9)';
-    ctx.beginPath(); ctx.arc(f.face*23*s, 4*s, 5.5*s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(23*s, 4*s, 5.5*s, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   } else if(f.state==='attack'){
     // 出拳：先收拳再打出
-    ctx.save(); ctx.translate(f.face*10*s, shY + 10*s);
-    ctx.rotate((f.stT<.15 ? -2.2 : .6) * f.face * .45);
+    ctx.save(); ctx.translate(10*s, shY + 10*s);
+    ctx.rotate((f.stT<.15 ? -2.2 : .6) * .45);
     ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(22*s, 0); ctx.stroke();
     ctx.fillStyle = colorGlow + '.9)';
@@ -1019,7 +1024,7 @@ function drawFighter(f, t, dt){
     ctx.restore();
   } else {
     // 待机：手臂自然下垂轻摆
-    ctx.save(); ctx.translate(f.face*8*s, shY + 8*s);
+    ctx.save(); ctx.translate(8*s, shY + 8*s);
     ctx.rotate(Math.sin(f.stepT*10)*.35 + .12);
     ctx.strokeStyle = colorDark; ctx.lineWidth = 7*s; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 22*s); ctx.stroke();
@@ -1043,9 +1048,11 @@ function drawFighter(f, t, dt){
     ctx.strokeStyle = 'rgba(251,191,36,.5)';
     ctx.lineWidth = 2.5*s; ctx.lineCap='round';
     ctx.beginPath();
-    ctx.moveTo(-f.face * 30*s, -8*s); ctx.lineTo(0, 0);
+    ctx.moveTo(-30*s, -8*s); ctx.lineTo(0, 0);
     ctx.stroke();
   }
+
+  ctx.restore();   // 结束朝向镜像（粒子用世界坐标差值，不参与镜像）
 
   // 粒子
   for(const pt of f.particle){
