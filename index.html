@@ -700,7 +700,7 @@ function update(dt, t){
       } else {
         // 完全结束：cyc 1→0（回到正常站立姿态）
         g.cyc = lerp(g.cyc, 0, dt*6);
-        if(Math.abs(g.cyc) < .06){ g.cast=''; g.castT=0; g.phase=0; g.spinP=0; }
+        if(Math.abs(g.cyc) < .06){ g.cast=''; g.castT=0; g.phase=0; g.spinP=0; g.state='idle'; }
       }
     }
     // 粒子
