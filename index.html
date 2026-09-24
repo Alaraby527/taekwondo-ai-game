@@ -139,7 +139,7 @@
       <span class="badge hot">跆拳道社 × AI</span>
     </div>
     <h1 class="logo">跆拳道 · AI 对战</h1>
-    <p class="sub">操控小人，挑战 AI 跆拳道高手！按 <b>WT 竞技规则</b>计分：拳躯干 1 分 · 踢躯干 2 分 · 踢头 3 分 · 旋转踢 +1，三局两胜，击倒后 8 秒读秒。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，一招一式都是科技与热血的碰撞。</p>
+    <p class="sub">操控小人，挑战 AI 跆拳道高手！按 <b>WT 竞技规则</b>计分：拳躯干 1 分 · 踢躯干 2 分 · 踢头 3 分 · 旋转踢 +1，三局两胜，击倒后 8 秒读秒。<b>比赛有边界：完全出界判罚对方 +1 分</b>；正拳单发、出招有间隔，一招一式见真章。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，科技与热血的碰撞。</p>
 
     <div class="perks">
       <div class="perk"><div class="icon">🥋</div><div class="t">AI 对手</div><div class="d">会攻防、会闪避的 AI 跆拳道高手，从白带到黑带逐个挑战</div></div>
@@ -252,7 +252,7 @@ const ease = t => 1 - Math.pow(1 - t, 3);
 
 /* ---------- 画布 ---------- */
 const cv = $('cv'), ctx = cv.getContext('2d');
-let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0;
+let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0, COURT = 340;
 const SCALE = () => Math.min(W, 780) / 780;   // 画布逻辑缩放
 
 function resize(){
@@ -263,6 +263,7 @@ function resize(){
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   CX = W / 2;
   GROUND = H - Math.max(70, H * 0.10);   // 地面高度
+  COURT = Math.min(W*.42, 350);          // WT 比赛区半径（出界判罚线为 COURT+42）
   placeTouch();
 }
 window.addEventListener('resize', resize);
@@ -356,11 +357,11 @@ const STATE = { menu:'menu', fight:'fight', over:'over' };
 const state = { mode:STATE.menu, overTimer:0, winStreak:0, roundTime:60, count:null, countNum:8, countT:0 };
 
 const RANKS = [
-  { name:'白带', color:'#e8eefc', ai:0.32, speed:0.9, hp:90,  tag:'新手 AI' },
-  { name:'黄带', color:'#facc15', ai:0.50, speed:1.05, hp:115, tag:'入门 AI' },
-  { name:'蓝带', color:'#38bdf8', ai:0.68, speed:1.2, hp:140, tag:'进阶 AI' },
-  { name:'红带', color:'#f97316', ai:0.85, speed:1.4, hp:165, tag:'高手 AI' },
-  { name:'黑带', color:'#1f2937', ai:1.0, speed:1.6, hp:195, tag:'宗师 AI' },
+  { name:'白带', color:'#e8eefc', ai:0.42, speed:1.0, hp:90,  tag:'新手 AI' },
+  { name:'黄带', color:'#facc15', ai:0.58, speed:1.15, hp:115, tag:'入门 AI' },
+  { name:'蓝带', color:'#38bdf8', ai:0.74, speed:1.3, hp:140, tag:'进阶 AI' },
+  { name:'红带', color:'#f97316', ai:0.88, speed:1.5, hp:165, tag:'高手 AI' },
+  { name:'黑带', color:'#1f2937', ai:1.0, speed:1.7, hp:195, tag:'宗师 AI' },
 ];
 let rankIdx = 0;
 let roundWins = 0, aiWins = 0;   // 大比分（三局两胜）
@@ -419,10 +420,11 @@ function burst(f, n, color, spd=5){
 }
 
 /* 战斗逻辑 */
+/* WT 规则：正拳为单发直拳，出拳后有完整恢复期（1.0s 冷却），不能连续冲拳 */
 function tryPunch(f){
   if(!f.canAct() || f.cool>0) return;
   if(f.state==='block') f.holdBlock = false;
-  f.state = 'attack'; f.stT = 0; f.anim = 1; f.cool = 0.55;
+  f.state = 'attack'; f.stT = 0; f.anim = 1; f.cool = 1.0;
   sfx('punch', .25);
   setTimeout(() => { if(f.state==='attack') f.state='idle'; }, 340);
 }
@@ -553,50 +555,55 @@ function aiThink(dt){
   const f = ai;
   const p = player;
   const dist = Math.abs(p.x - f.x);
+  const skill = rank.ai;
 
-  // 若玩家倒地，AI 后退保持距离
+  // 若玩家倒地，AI 后退保持距离（WT：读秒期间不得进攻）
   if(!p.grounded){ f.face = p.x > f.x ? 1 : -1; f.vx = -f.face * 90; return; }
 
   // 面朝玩家
   const wantFace = p.x > f.x ? 1 : -1;
   if(f.grounded && f.state==='idle' && f.cast==='') f.face = wantFace;
 
-  // 决策冷却：难度越高反应越快
+  // 决策冷却：难度越高反应越快（高手决策间隔约 0.2~0.45s）
   f.thinkT = (f.thinkT||0) - dt;
   if(f.thinkT <= 0 && f.canAct()){
-    const skill = rank.ai;
-    f.thinkT = rand(.45, 1.0) / (0.45 + skill*0.5);
+    f.thinkT = rand(.28, .7) / (0.4 + skill*0.6);
     const roll = Math.random();
-    // 技能越高越倾向于进攻
-    const aggr = 0.3 + skill * 0.35;
+    const aggr = 0.35 + skill * 0.45;           // 进攻欲望随段位显著提升
 
-    if(dist > 190){        // 远：逼近
-      f.vx = wantFace * rand(140, 220) * rank.speed;
-    } else if(dist < 105){ // 近：随机出招/后撤
-      if(roll < 0.14 && skill > .5){ f.vx = -wantFace * 260; }        // 撤步
-      else if(roll < 0.20){ tryKick(f); }
+    // 反击意识：玩家处于出招前摇/受击硬直 → 立即压上反击
+    const counter = (p.state==='attack' || p.state==='kick' || p.freeze > .15) && dist < 160;
+
+    if(dist > 200){        // 远：快速逼近
+      f.vx = wantFace * rand(240, 330) * rank.speed;
+    } else if(dist < 110){ // 近身：主动进攻为主
+      if(counter && skill > .4 && Math.random() < .5 + skill*.3){
+        if(Math.random() < .6) tryPunch(f); else tryKick(f);
+      }
+      else if(roll < .15 && skill > .6){ f.vx = -wantFace * 280; }   // 少量撤步拉开
+      else if(roll < .44){ tryKick(f); }
       else if(roll < aggr){ tryPunch(f); }
-      else { f.vx = -wantFace * rand(60,120); }
-    } else {               // 中距：试探与突进
-      if(roll < 0.12 && skill > .55){ tryKick(f); }
-      else if(roll < aggr*0.8){ tryPunch(f); }
-      else if(roll < 0.62){ f.vx = wantFace * rand(260, 340); }       // 突进
-      else { f.vx = -wantFace * rand(80,160); }
+      else { f.vx = -wantFace * rand(40,100); }                      // 微调距离保持压制
+    } else {               // 中距：突进与踢击试探
+      if(roll < .2 && skill > .5){ tryKick(f); }
+      else if(roll < aggr*.85){ tryPunch(f); }
+      else if(roll < .82){ f.vx = wantFace * rand(280, 360) * rank.speed; }  // 果断突进
+      else { f.vx = -wantFace * rand(60,140); }
     }
-    // 高手：预判格挡（玩家出招时）
-    if(skill > .6 && (p.state==='attack'||p.state==='kick') && dist < 130 && Math.random() < (skill-.55)*.8){
+    // 格挡反应：玩家出招时（门槛降低、概率提高）
+    if((p.state==='attack'||p.state==='kick') && dist < 150 && Math.random() < (skill-.3)*.9){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
       setTimeout(() => { if(f.state==='block') f.state='idle'; }, 350);
     }
-    // 高手：偶尔跳起进攻 / 旋风踢 / 飞踢
-    if(skill > .55 && f.state==='idle' && f.cast==='' && dist < 160 && dist > 80){
+    // 特技：旋风踢 / 飞踢（使用频率提高）
+    if(f.state==='idle' && f.cast==='' && dist < 175 && dist > 70){
       const sroll = Math.random();
-      if(sroll < .10 && skill > .8){
-        startSpinx(f);                                  // 黑带旋风踢
+      if(sroll < .15 && skill > .7){
+        startSpinx(f);                                  // 高段位旋风踢
         f.vx = wantFace * 200;
-      } else if(sroll < .18 && skill > .6){
+      } else if(sroll < .28 && skill > .5){
         startFlyingKick(f);                             // 飞踢
-        f.jumpH = wantFace * 380;
+        f.jumpH = wantFace * 400;
       }
     }
   }
@@ -777,14 +784,36 @@ function update(dt, t){
   }
   for(const g of [p,f]) g.stT += dt;
 
-  // 边界
-  const L = CX - W*.44, Rg = CX + W*.44;
-  p.x = clamp(p.x, L, Rg); f.x = clamp(f.x, L, Rg);
-  // 面对面
+  // WT 场地规则：8m 比赛区，完全出界判 gam-jeom（警告判罚：对方 +1 分，拉回场内）
+  if(state.mode===STATE.fight && !state.count){
+    state.gamT = Math.max(0, (state.gamT||0) - dt);
+    for(const g of [p,f]){
+      if(g.kd>0) continue;
+      const over = Math.abs(g.x - CX) - COURT;
+      if(over > 42 && state.gamT <= 0){
+        // 完全出界 → 判罚：对方 +1 分，自己被拉回比赛区内
+        if(g.side==='p') scoreA += 1; else scoreP += 1;
+        g.lastPt = -1; g.lastPtT = 1.2;          // 负数 = 出界判罚（飘分显示"出界"）
+        g.x = CX + Math.sign(g.x - CX) * (COURT - 30);
+        g.vx = 0;
+        state.gamT = .6;                          // 判罚防抖
+        sfx('guard', .5);
+      }
+      // 硬限制（防跑出屏幕）
+      g.x = clamp(g.x, CX - COURT - 90, CX + COURT + 90);
+    }
+  } else {
+    // 非战斗状态：宽松边界
+    const L = CX - W*.44, Rg = CX + W*.44;
+    p.x = clamp(p.x, L, Rg); f.x = clamp(f.x, L, Rg);
+  }
+  // 面对面推挤（被动推挤不算出界，最多推到判罚线上）
   const gap = (p.w + f.w)/2 + 12;
   if(Math.abs(f.x - p.x) < gap){
     if(p.x < f.x){ p.x = f.x - gap; } else { p.x = f.x + gap; }
   }
+  p.x = clamp(p.x, CX - COURT - 42, CX + COURT + 42);
+  f.x = clamp(f.x, CX - COURT - 42, CX + COURT + 42);
 
   // 回合计时（WT：每回合限时，时间到按得分判胜负）
   if(state.mode===STATE.fight && !state.count && !f.roundDone && !p.roundDone){
@@ -811,7 +840,7 @@ function startRound(){
   player.face = 1; ai.face = -1;
   player.roundDone = false; ai.roundDone = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
-  state.count = null; state.countT = 0; state.countNum = 8;
+  state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
   state.roundTime = 60;                 // WT 单回合 2 分钟，游戏内 60 秒
   hitLocks.clear();
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;
@@ -869,6 +898,30 @@ function drawGround(){
   // 中心圆
   ctx.strokeStyle = 'rgba(34,211,238,.18)';
   ctx.beginPath(); ctx.arc(CX, GROUND, 130, 0, Math.PI*2); ctx.stroke();
+
+  // WT 比赛区：出界区（淡红）+ 边界警戒线（完全出界判 gam-jeom）
+  const s2 = SCALE();
+  ctx.fillStyle = 'rgba(255,59,92,.055)';
+  ctx.fillRect(0, 0, CX - COURT, H);
+  ctx.fillRect(CX + COURT, 0, W - CX - COURT, H);
+  ctx.strokeStyle = 'rgba(255,59,92,.6)';
+  ctx.lineWidth = 2.5;
+  for(const bx of [CX - COURT, CX + COURT]){
+    ctx.beginPath();
+    ctx.moveTo(bx, GROUND + 4);
+    ctx.lineTo(bx, GROUND - 170*s2);
+    ctx.stroke();
+    // 底部端点小三角（警戒标）
+    ctx.fillStyle = 'rgba(255,59,92,.6)';
+    ctx.beginPath();
+    ctx.moveTo(bx, GROUND - 4); ctx.lineTo(bx - 7, GROUND - 14); ctx.lineTo(bx + 7, GROUND - 14);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.font = `600 ${10*s2}px sans-serif`;
+  ctx.fillStyle = 'rgba(255,59,92,.5)';
+  ctx.textAlign = 'center';
+  ctx.fillText('出界判罚线', CX - COURT, GROUND - 178*s2);
+  ctx.fillText('出界判罚线', CX + COURT, GROUND - 178*s2);
 }
 
 function drawFighter(f, t, dt){
@@ -1115,7 +1168,7 @@ function drawHUD(t){
   // 提示
   ctx.font = `500 ${11.5*s}px sans-serif`;
   ctx.fillStyle = 'rgba(147,163,199,.7)';
-  ctx.fillText('A/D 移动 · W/空格 跳 · J 拳 · K 踢(连按=旋风踢) · L 挡 · 空中踢=飞踢', CX, H - 24);
+  ctx.fillText('A/D 移动 · W/空格 跳 · J 拳(单发有间隔) · K 踢(连按=旋风踢) · L 挡 · 空中踢=飞踢 · 出界判罚', CX, H - 24);
 
   // 玩家连击显示
   if(player.combo >= 2 && player.comboT > 0){
@@ -1127,14 +1180,21 @@ function drawHUD(t){
     ctx.globalAlpha = 1;
   }
 
-  // 命中飘分（+1/+2/+3）
+  // 命中飘分（+1/+2/+3；负值 = 出界判罚提示）
   for(const g of [player, ai]){
     if(g.lastPt && g.lastPtT > 0){
       ctx.globalAlpha = clamp(g.lastPtT*1.5, 0, 1);
       ctx.font = `900 ${22*s}px sans-serif`;
-      ctx.fillStyle = g.side==='p' ? '#fbbf24' : '#f97316';
-      ctx.textAlign = 'center';
-      ctx.fillText(`+${g.lastPt}`, g.x, GROUND - g.h - 20*s - (1-g.lastPtT)*30*s);
+      if(g.lastPt < 0){
+        ctx.fillStyle = '#f87171';
+        ctx.fillText('出界判罚', g.x, GROUND - g.h - 20*s - (1-g.lastPtT)*30*s);
+        ctx.font = `700 ${13*s}px sans-serif`;
+        ctx.fillStyle = '#ffb3c0';
+        ctx.fillText('对方 +1', g.x, GROUND - g.h + 2*s - (1-g.lastPtT)*30*s);
+      } else {
+        ctx.fillStyle = g.side==='p' ? '#fbbf24' : '#f97316';
+        ctx.fillText(`+${g.lastPt}`, g.x, GROUND - g.h - 20*s - (1-g.lastPtT)*30*s);
+      }
       ctx.globalAlpha = 1;
     }
   }
