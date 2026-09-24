@@ -19,7 +19,7 @@
     --dim:#93a3c7;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;}
+  html,body{height:100%;touch-action:manipulation;}
   body{
     background:var(--bg);
     color:var(--text);
@@ -65,10 +65,10 @@
   .perk .d{font-size:11.5px;color:var(--dim);line-height:1.5;}
   .qr-zone{display:flex;align-items:center;gap:16px;border:1px dashed var(--line);border-radius:14px;
     padding:14px 16px;background:rgba(34,211,238,.03);flex-wrap:wrap;}
-  .qr-frame{width:96px;height:96px;flex:none;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;
-    color:#0b0e17;font-size:11px;text-align:center;padding:4px;overflow:hidden;position:relative;}
+  .qr-frame{width:132px;height:132px;flex:none;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    color:#0b0e17;font-size:13px;text-align:center;padding:6px;overflow:hidden;position:relative;}
   .qr-frame img{width:100%;height:100%;object-fit:contain;border-radius:6px;}
-  .qr-placeholder{font-size:11px;color:#5a6b8c;line-height:1.6;font-weight:600;}
+  .qr-placeholder{font-size:13px;color:#5a6b8c;line-height:1.6;font-weight:600;}
   .qr-item{display:flex;flex-direction:column;align-items:center;gap:6px;}
   .qr-label{font-size:11.5px;font-weight:700;color:var(--dim);white-space:nowrap;}
   .qr-label.small{font-size:10.5px;}
@@ -107,9 +107,18 @@
   .op-stats b{color:var(--text);font-size:17px;}
   .op-qr{display:flex;align-items:center;gap:12px;border:1px dashed var(--line);border-radius:12px;padding:10px 14px;
     background:rgba(34,211,238,.04);text-align:left;flex-wrap:wrap;justify-content:center;}
-  .op-qr .qr-frame{width:64px;height:64px;}
+  .op-qr .qr-frame{width:104px;height:104px;}
   .op-qr .t{font-weight:700;font-size:13.5px;}
   .op-qr .d{font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:2px;}
+  .op-qr .qr-label{font-size:12px;}
+
+  /* 竖屏提示（游戏中建议横屏） */
+  #rotate-tip{position:absolute;inset:0;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(7,10,20,.9);backdrop-filter:blur(5px);text-align:center;gap:12px;padding:24px;}
+  #rotate-tip.show{display:flex;}
+  #rotate-tip .r-icon{font-size:46px;}
+  #rotate-tip .r-title{font-size:19px;font-weight:800;letter-spacing:1px;}
+  #rotate-tip .r-desc{color:var(--dim);font-size:13px;line-height:1.7;}
   .btn-row.center{justify-content:center;}
 
   /* 移动端触控按钮 */
@@ -151,7 +160,7 @@
       <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">W</span>/<span class="keycap">Space</span> 跳 · <span class="keycap">J</span> 拳 · <span class="keycap">K</span> 踢 · <span class="keycap">L</span> 挡</span>
       <span class="k">🌀 炫技：空中踢=飞踢 · 连按 <span class="keycap">K</span>=旋风踢(撤步转体360°横扫) · 连续命中=连招加伤</span>
       <span class="k">🥊 WT 计分：拳1 · 踢2 · 踢头3 · 旋转踢+1 · 击倒后 8 秒读秒，狂按 <span class="keycap">J/K</span> 起身</span>
-      <span class="k">📱 触屏：屏幕按钮直接点</span>
+      <span class="k">📱 触屏：左右键移动 · 踢/挡/跳按钮，<b>连点踢=旋风踢</b> · 按住反方向+踢=后踢</span>
     </div>
 
     <div class="btn-row">
@@ -198,9 +207,16 @@
     <div class="tk" id="t-jump">⤴ 跳</div>
   </div>
 
+  <!-- 竖屏提示（游戏中建议横屏，可跳过） -->
+  <div id="rotate-tip">
+    <div class="r-icon">🔄</div>
+    <div class="r-title">建议横屏游玩</div>
+    <div class="r-desc">跆拳道对战需要更宽的赛场视野<br>横屏后角色更大、出招更准</div>
+    <button class="btn btn-ghost" id="btn-rotate-dismiss">仍要竖屏游玩</button>
+  </div>
+
   <!-- 结束面板 -->
-  <div class="overlay-panel" id="endPanel">
-    <div class="op-title" id="endTitle"></div>
+  <div class="overlay-panel" id="endPanel">    <div class="op-title" id="endTitle"></div>
     <div class="op-sub" id="endSub"></div>
     <div class="op-stats">
       <span>你 <b id="stP"></b></span>
@@ -253,7 +269,8 @@ const ease = t => 1 - Math.pow(1 - t, 3);
 /* ---------- 画布 ---------- */
 const cv = $('cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0, COURT = 340;
-const SCALE = () => Math.min(W, 780) / 780;   // 画布逻辑缩放
+const SCALE = () => Math.max(.66, Math.min(W, 780) / 780);   // 画布逻辑缩放（竖屏时角色不缩太小）
+const isTouch = () => matchMedia('(pointer: coarse)').matches;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -265,6 +282,7 @@ function resize(){
   GROUND = H - Math.max(70, H * 0.10);   // 地面高度
   COURT = Math.min(W*.42, 350);          // WT 比赛区半径（出界判罚线为 COURT+42）
   placeTouch();
+  if(typeof checkOrientation === 'function') checkOrientation();
 }
 window.addEventListener('resize', resize);
 
@@ -335,7 +353,7 @@ document.addEventListener('keyup', e => {
 /* 触屏按钮 */
 let kickEdge = false;   // 踢钮边沿触发（按住不连发）
 function placeTouch(){
-  const show = matchMedia('(pointer: coarse)').matches;
+  const show = isTouch();
   $('touch').classList.toggle('show', show);
   if(!show) return;
   const b = (id, fn) => {
@@ -351,6 +369,16 @@ function placeTouch(){
   b('t-jump',  v => { touch.jump = v; if(v) setJump('p'); });
 }
 placeTouch();
+
+/* 竖屏提示：游戏中竖屏建议横屏（每局提示一次，可跳过） */
+let portraitDismissed = false;
+function checkOrientation(){
+  const show = state.mode !== STATE.menu
+    && window.innerHeight > window.innerWidth
+    && !portraitDismissed;
+  $('rotate-tip').classList.toggle('show', show);
+}
+$('btn-rotate-dismiss').addEventListener('click', () => { portraitDismissed = true; checkOrientation(); });
 
 /* ---------- 游戏常量 ---------- */
 const STATE = { menu:'menu', fight:'fight', over:'over' };
@@ -1225,10 +1253,11 @@ function drawHUD(t){
   ctx.fillStyle = roundWins>aiWins ? '#fbbf24' : '#93a3c7';
   ctx.fillText(`${roundWins} - ${aiWins}`, CX, y + 64*s);
 
-  // 提示
+  // 提示（触屏设备显示触屏技巧，桌面显示键盘操作）
   ctx.font = `500 ${11.5*s}px sans-serif`;
   ctx.fillStyle = 'rgba(147,163,199,.7)';
-  ctx.fillText('A/D 移动 · W/空格 跳 · K 横踢 · 连按K=旋风踢 · 后退+K=后踢 · 空中K=飞踢 · J 正拳 · L 挡', CX, H - 24);
+  if(isTouch()) ctx.fillText('连点踢=旋风踢 · 按住方向+踢=后踢 · 空中踢=飞踢', CX, H - 12);
+  else ctx.fillText('A/D 移动 · W/空格 跳 · K 横踢 · 连按K=旋风踢 · 后退+K=后踢 · 空中K=飞踢 · J 正拳 · L 挡', CX, H - 24);
 
   // 玩家连击显示
   if(player.combo >= 2 && player.comboT > 0){
@@ -1344,6 +1373,7 @@ function showGame(){
   $('game').classList.remove('hidden');
   audio();  // 预创建音频上下文（用户手势）
   startRound();
+  checkOrientation();   // startRound 之后（state.mode 已是 fight）才检测竖屏
 }
 function showHome(){
   $('game').classList.add('hidden');
