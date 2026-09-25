@@ -26,6 +26,7 @@ function startRound(){
   state.roundTime = R().roundTime || 30;  // 黑带为 60 秒（Boss 局更长），其余 30 秒
   hitLocks.clear();
   simClear();                           // 清掉上一局遗留的仿真时间回调
+  if(typeof resetAlloc === 'function') resetAlloc();   // 清空决战增益
   sparks = []; rings = []; floats = []; flashA = 0; slowT = 0;
   sfx('bell', .35);
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;

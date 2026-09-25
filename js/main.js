@@ -22,6 +22,9 @@ function showHome(){
   $('game').classList.add('hidden');
   $('landing').classList.remove('hidden');
   $('endPanel').classList.remove('show');
+  /* 若在决战分配面板期间返回首页，也要把它收掉并解除冻结 */
+  $('allocPanel').classList.remove('show');
+  state.alloc = false;
   state.mode = STATE.menu;
   refreshContinue();          // 刚打完可能已晋级，按钮要跟着刷新
   track('return_home', { rank: R().name, saveRank: SAVE.rankIdx });
@@ -34,6 +37,7 @@ $('btn-re').addEventListener('click', () => {
   else startRound();
 });
 $('btn-home').addEventListener('click', showHome);
+$('btn-alloc-go').addEventListener('click', closeAlloc);
 
 /* 「继续上次」按钮：有存档才露出。引导页加载与每次返回首页都要刷新 */
 function refreshContinue(){

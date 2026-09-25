@@ -222,6 +222,16 @@
     filter:drop-shadow(0 0 22px rgba(255,59,92,.4));}
   .op-sub{color:var(--dim);font-size:13px;line-height:1.75;}
   .op-sub b{color:var(--text);}
+  /* 决战前的增益分配面板 */
+  .alloc-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:440px;}
+  .alloc-card{display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 12px;border-radius:12px;
+    border:1px solid var(--line-strong);background:rgba(255,255,255,.04);color:var(--text);
+    font-family:inherit;cursor:pointer;transition:transform .12s, background .12s;}
+  .alloc-card:hover:not(:disabled){background:rgba(255,255,255,.09);transform:translateY(-1px);}
+  .alloc-card:disabled{opacity:.35;cursor:default;}
+  .alloc-card b{font-size:14px;letter-spacing:1px;color:var(--gold);}
+  .alloc-card span{font-size:11.5px;color:var(--dim);line-height:1.5;}
+  .alloc-rate{color:var(--dim-deep);font-size:11px;}
   .promo{display:none;align-items:center;justify-content:center;gap:12px;margin:2px 0;
     border:1px solid rgba(251,191,36,.4);border-radius:14px;padding:12px 14px;
     background:linear-gradient(90deg,rgba(251,191,36,.10),rgba(251,191,36,.04));
@@ -421,6 +431,19 @@
   </div>
 
   <!-- 结束面板 -->
+  <div class="overlay-panel" id="allocPanel">
+    <div class="op-kicker" id="allocKicker">FINAL BATTLE · 决战准备</div>
+    <div class="op-title win">选择增益</div>
+    <div class="op-sub">
+      黑带阶段拿下 <b id="allocScore">0</b> 分 → 可分配 <b id="allocPts">0</b> 个大分
+      <span class="alloc-rate">（每 5 分 = 1 个大分）</span>
+    </div>
+    <div class="alloc-list" id="allocList"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary sm" id="btn-alloc-go">开始决战</button>
+    </div>
+  </div>
+
   <div class="overlay-panel" id="endPanel">
     <div class="op-kicker" id="endKicker">MATCH RESULT · 对局结算</div>
     <div class="op-title" id="endTitle"></div>
@@ -467,6 +490,7 @@
 <script src="js/jev.js"></script>
 <script src="js/track.js"></script>
 <script src="js/persist.js"></script>
+<script src="js/alloc.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/update.js"></script>
 <script src="js/round.js"></script>

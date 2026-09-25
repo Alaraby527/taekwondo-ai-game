@@ -192,6 +192,7 @@ function resolveHit(f, t){
   let dmg = base * (1 + Math.min(combo-1, 3) * 0.14);   // 最多叠 3 段
   if(f.cast==='spinx') dmg = base * 1.9;                 // 旋风踢高伤
   if(f.flyKick) dmg = base * 1.15;                       // 飞踢加成（同时它有 0.4s 落地硬直可被反击）
+  dmg *= (f.dmgMul || 1);                                // 决战增益「重击」：玩家伤害加成
 
   const hitX = t.x - t.face*10, hitY = t.h*.62;   // 世界高度（命中点在头部附近）
 
@@ -245,11 +246,7 @@ function knockdown(t, f){
     t.vx = 0; t.targetVx = 0;
     if(state.count === t.side) state.count = null;   // 取消本次读秒
 
-    /* —— 二阶段：双方重置位置 + 时间恢复 60 秒 ——
-       曾经这里还把场地翻倍（COURT 300→600）。但实测那是「纯缩放」而非玩法变化：
-       踢击判定距离约 152，而移动速度/攻击距离/出界余量都没变，
-       于是多出来的场地无人使用 —— 翻倍后两人占用半径反而从 76% 掉到 34%，
-       镜头也只框住两人，玩家根本感受不到。已回退。 */
+    // —— 二阶段：双方重置位置 + 时间恢复 60 秒 ——
     const off = clamp(COURT * .5, 80, 150);           // 重置到开局站位（对称于场地中心）
     player.x = -off; ai.x = off;
     player.face = 1; ai.face = -1;
@@ -258,14 +255,12 @@ function knockdown(t, f){
     state.countNum = 8;
     state.countT = 0;
 
-    // —— 特效：大横幅 + 全屏白闪 + 双冲击环 + 金色爆发 + 慢动作 + 震屏 ——
-    announce('超级复活！', 2.4, '#fbbf24');
-    flashA = 1.0; slowT = 1.2; shake(20, .9);
-    burst(t, 64, '#fbbf24', 15);
-    burst(t, 28, '#ffffff', 9);
-    rings.push({ x:t.x, y:t.h*.55, dur:1.0, life:1.0, r0:20, r1:360, color:'#fde047', lw:7 });
-    rings.push({ x:t.x, y:t.h*.55, dur:.7,  life:.7,  r0:10, r1:250, color:'#ffffff', lw:4 });
-    sfx('win', .65);
+    /* 立即冻结并弹出「决战前增益分配」面板。
+       必须在复活当帧就冻结：先前用 simLater 延后 1.2 秒再弹面板，
+       而那 1.2 秒里模拟照跑，玩家可以自由移动（用户报的 bug）。
+       演出（白闪/慢动作/震屏/粒子）挪到「确认开战」那一刻 ——
+       因为冻结期间 update 不推进，放在这里只会定格成一帧白屏。 */
+    if(typeof openAlloc === 'function') openAlloc();
     return;
   }
 

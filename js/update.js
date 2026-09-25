@@ -19,6 +19,7 @@ function dustRing(f, n=12){
 }
 function update(dt, t){
   if(window.__pause) return;   // 调试暂停（浏览器自动化用）
+  if(state.alloc) return;     // 决战前的增益分配面板期间：冻结整场模拟
   simTick(dt);                 // 推进仿真时间调度（所有状态切换都挂在它上面）
   const p = player, f = ai;
 
@@ -70,7 +71,7 @@ function update(dt, t){
            目标时间：玩家 7.0s（狂按可大幅加速）；AI 按段位递减，黑带 0.5s。
            因为目标时间都小于 8 秒读秒，所以认真站起来不会被判 KO；
            击败对手要靠比分或「三倒判负」。 */
-        const target = (g.side === 'p') ? RISE_TIME_PLAYER : (R().riseTime || 4.5);
+        const target = (g.side === 'p') ? (RISE_TIME_PLAYER * (g.riseMul || 1)) : (R().riseTime || 4.5);
         /* 狂按加速：把点击转成倍率，而不是直接加进度，这样「逐渐增加」的手感才成立 */
         if(g.side === 'p' && riseTapP > 0){ g.riseBoost = Math.min(6, (g.riseBoost || 1) + riseTapP * 2.2); riseTapP = 0; }
         g.riseBoost = Math.max(1, lerp(g.riseBoost || 1, 1, dt * 0.9));   // 倍率慢慢回落到 1
@@ -209,8 +210,8 @@ function update(dt, t){
     else if(p.kd>0 || p.rise>=1){ if(!p.roundDone){ p.roundDone = true; aiWins++; sfx('lose'); endRound(); } }
   }
 
-  // 玩家输入（仅可行动时；开局倒计时期间冻结）
-  if(p.canAct() && !introHold){
+  // 玩家输入（仅可行动时；开局倒计时与面板/结算期间冻结）
+  if(p.canAct() && !introHold && !inputLocked()){
     if(p.holdBlock){
       if(p.state==='idle') p.state='block';
       p.cool = Math.max(p.cool, .25);

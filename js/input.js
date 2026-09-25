@@ -12,12 +12,13 @@ function isDown(dir){
   return false;
 }
 const jumpBuf = { p:0, a:0 };        // 跳跃缓冲（触屏/连按）
-function setJump(side){ jumpBuf[side] = .16; }
+function setJump(side){ if(typeof inputLocked === 'function' && inputLocked()) return; jumpBuf[side] = .16; }
 let riseTapP = 0;                    // 玩家被读秒时，按 J/K/触屏攻击键加速起身
 
 /* 格挡需要按住：L 键 / 触屏按钮按住期间持续保持 block 状态 */
 function holdBlock(v){
   if(v){
+    if(typeof inputLocked === 'function' && inputLocked()) return;   // 面板/结算期间不接受按下
     if(player.state==='idle' && player.cast===''){ player.state='block'; player.cool = Math.max(player.cool, .3); }
     player.holdBlock = true;
   } else {
@@ -26,10 +27,19 @@ function holdBlock(v){
   }
 }
 
+/* ---------- 输入锁 ----------
+   面板/结算期间不接受任何操作。
+   注意两点：
+   1) 不能把「读秒」算进去 —— 读秒时玩家正是要狂按 J/K 起身（此时 mode 仍是 fight）
+   2) holdBlock / setJump 是【直接改状态】的（不走 update），所以必须在入口就拦住，
+      否则面板期间角色会变姿势、或攒下一次跳跃，确认后突然动起来 */
+function inputLocked(){ return state.alloc || state.mode !== STATE.fight; }
+
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
-  keys[k] = true;
   if(['a','d','w','j','k','l',' '].includes(k)) e.preventDefault();
+  if(inputLocked()) return;                 // 锁定期间不响应；keyup 仍处理，避免按键残留
+  keys[k] = true;
   if(k === 'j'){ tryPunch(player); if(state.count==='p') riseTapP = Math.max(riseTapP, .25); }
   if(k === 'k' && !e.repeat){ tryKick(player); if(state.count==='p') riseTapP = Math.max(riseTapP, .3); }       // e.repeat 过滤按住连发
   if(k === ' ' || k === 'w' || k === 'arrowup') setJump('p');
@@ -59,7 +69,7 @@ function placeTouch(){
   if(!show) return;
   const b = (id, fn) => {
     const el = $(id);
-    el.addEventListener('touchstart', e => { e.preventDefault(); fn(true); }, {passive:false});
+    el.addEventListener('touchstart', e => { e.preventDefault(); if(inputLocked()) return; fn(true); }, {passive:false});
     el.addEventListener('touchend', e => { e.preventDefault(); fn(false); }, {passive:false});
     el.addEventListener('touchcancel', () => fn(false));
   };
