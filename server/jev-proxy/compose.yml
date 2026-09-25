@@ -12,18 +12,27 @@
 
 services:
   jev-proxy:
+    # build.context 用「相对路径」：本机 compose 无 buildx 插件，回退传统构建器，
+    # 而传统构建器的 context 由 compose 客户端（本容器内）打包上传，
+    # 因此绝对路径 /vol1/... 在容器内不存在、会报 not found。
+    # 相对路径相对 compose 文件所在目录解析 → 从容器内与从宿主机运行都成立。
     build:
-      context: /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy
+      context: .
     image: taekwondo-jev-proxy:local
     container_name: taekwondo-jev-proxy
     restart: unless-stopped
+    # env_file 用「相对路径」：它由 compose 客户端（本容器内）读取，
+    # 而容器内看不到 /vol1。相对路径相对 compose 文件所在目录解析，
+    # 因此从容器内运行与从宿主机运行都成立。
+    # （注意：build.context 与 volumes 由宿主机 daemon 解析，必须用 /vol1/... 绝对路径）
     env_file:
-      - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy/.env
+      - ./.env
     environment:
       PORT: "15810"
       JEV_TIMEOUT: "6"            # 单次调用超时（秒）
-      BUDGET_PER_FIGHT: "40"      # 每局最多调用次数（成本闸门）
+      BUDGET_PER_FIGHT: "120"     # 每局「真实调用」上限（缓存命中不计入）
       CACHE_SIZE: "512"           # 局面缓存条数
+      MAX_CALLS_PER_DAY: "3000"   # 全局每日上限（成本硬止损）
       ALLOW_ORIGIN: "*"
       SERVE_SITE: "1"
       SITE_DIR: "/site"

@@ -30,7 +30,7 @@ JEV_API_KEY = os.environ.get("JEV_API_KEY", "")
 JEV_TIMEOUT = float(os.environ.get("JEV_TIMEOUT", "6"))      # 单次调用超时（秒）
 JEV_MODEL = os.environ.get("JEV_MODEL") or None              # 可选：指定模型
 CACHE_SIZE = int(os.environ.get("CACHE_SIZE", "512"))        # 局面缓存条数
-BUDGET_PER_FIGHT = int(os.environ.get("BUDGET_PER_FIGHT", "40"))  # 每局最多调用次数
+BUDGET_PER_FIGHT = int(os.environ.get("BUDGET_PER_FIGHT", "120"))  # 每局「真实调用」上限
 ALLOW_ORIGIN = os.environ.get("ALLOW_ORIGIN", "*")           # CORS 允许来源
 LOG = os.environ.get("LOG_LEVEL", "info").lower() == "info"
 
@@ -171,7 +171,10 @@ def call_jev(s):
     from typesafe_sdk import Choice, Noul
     questions = {
         "tactic": Choice(
-            instructions="选择接下来 1~2 秒最合适的战术（只选一个）",
+            instructions=(
+                "选择接下来 1~2 秒最合适的战术（只选一个）。"
+                "注意：若我方血量明显低于对手、或所剩时间不多且已经领先，应偏向保守的战术。"
+            ),
             criteria={k: v for k, v in TACTICS.items()},
         ),
         "foe_kick": Noul(instructions="对手是否即将出腿攻击？"),
@@ -194,17 +197,20 @@ def decide(s):
     if not _ready.is_set():
         return {"src": "degraded", "reason": _last_error or "Jev 未就绪"}, "degraded"
 
-    budget = take_budget(s.get("fightId"))
-    if budget == "daily":
-        return {"src": "degraded", "reason": f"已达每日调用上限({MAX_CALLS_PER_DAY})"}, "daily"
-    if budget == "fight":
-        return {"src": "degraded", "reason": f"本局调用预算已用尽({BUDGET_PER_FIGHT}次)"}, "budget"
-
+    # 1) 先查缓存：命中零成本，因此【不消耗预算】、也不受闸门限制。
+    #    （顺序很重要：若先扣预算，一场五局三胜约 214 次请求会在第一局就把预算耗光）
     key = quantize(s)
     with _cache_lock:
         if key in _cache:
             _cache.move_to_end(key)
             return {"src": "cache", **_cache[key]}, "cache"
+
+    # 2) 只有真正要调用 Jev 时，才消耗成本预算
+    budget = take_budget(s.get("fightId"))
+    if budget == "daily":
+        return {"src": "degraded", "reason": f"已达每日调用上限({MAX_CALLS_PER_DAY})"}, "daily"
+    if budget == "fight":
+        return {"src": "degraded", "reason": f"本局调用预算已用尽({BUDGET_PER_FIGHT}次)"}, "budget"
 
     t0 = time.time()
     try:
@@ -234,13 +240,17 @@ class Handler(BaseHTTPRequestHandler):
     def _send_bytes(self, code, body, ctype):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
+        # 204/304 按 RFC 不得带消息体，也不能带 Content-Length，
+        # 否则浏览器会判为协议错误（表现为 ERR_EMPTY_RESPONSE，preflight 直接被拒）
+        if code not in (204, 304):
+            self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", ALLOW_ORIGIN)
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(body)
+        if code not in (204, 304):
+            self.wfile.write(body)
 
     def _send(self, code, payload):
         self._send_bytes(code, json.dumps(payload, ensure_ascii=False).encode("utf-8"),
