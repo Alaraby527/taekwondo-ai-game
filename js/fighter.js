@@ -16,7 +16,9 @@ class Fighter {
     this.state = 'idle'; this.stT = 0;        // 当前动作
     this.freeze = 0;                          // 受击硬直
     this.kd = 0; this.kdT = 0;                // 倒地
-    this.kdCount = 0;                         // 本回合被击倒次数（三倒判负）
+    this.kdCount = 0;                         // 本回合被击倒次数（达到 kdLimit 判负）
+    this.kdLimit = 3;                         // 倒地上限（黑带超级复活后会 +1）
+    this.superUsed = false;                   // 黑带「超级复活」是否已用
     this.flash = 0;                           // 受击闪白
     this.cool = 0;                            // 出招冷却
     this.particle = [];
@@ -39,7 +41,7 @@ class Fighter {
     this.lastPt = 0; this.lastPtT = 0;        // 最近命中得分
     this.kickTrail = [];                      // 踢击轨迹（脚部拖尾）
   }
-  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.kdCount=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; this.riseT=0; this.riseBoost=1; this.invuln=0; }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.kdCount=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; this.riseT=0; this.riseBoost=1; this.invuln=0; this.kdLimit=3; this.superUsed=false; }
   get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'||this.cast!==''; }
   get grounded(){ return this.kd<=0 && !this.airborne; }
   canAct(){ return this.kd<=0 && this.freeze<=0 && this.state==='idle' && this.cast===''; }
@@ -222,9 +224,49 @@ function resolveHit(f, t){
 }
 
 function knockdown(t, f){
-  // 三倒判负（职业踢拳规则）：同一回合第 3 次被击倒，直接输掉该回合
+  // 倒地判负（职业踢拳规则）：同一回合被击倒达到 kdLimit 次即输掉该回合（默认 3 次）
   t.kdCount = (t.kdCount || 0) + 1;
-  if(t.kdCount >= 3){
+
+  /* —— 黑带宗师的「超级复活」——
+     黑带 AI 达到倒地上限时不死，而是满血复活并【额外获得一次倒地机会】
+     （kdLimit += 1），因此它要被打倒 4 次才会真正判负。
+     只对黑带 AI 生效，玩家规则完全不变。每回合只触发一次。 */
+  const isBoss = (t.side === 'a') && rankIdx >= RANKS.length - 1;
+  if(isBoss && !t.superUsed && t.kdCount >= t.kdLimit){
+    t.superUsed = true;
+    t.kdLimit += 1;                       // 额外增加一次倒地次数
+    t.hp = t.maxHp; t.hpDisp = t.maxHp;   // 满血
+    t.kd = 0; t.kdT = 0; t.state = 'idle';
+    t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.y = 0;
+    t.cast = ''; t.castT = 0; t.flyKick = false;
+    t.rise = 0; t.riseT = 0; t.riseBoost = 1;
+    t.invuln = 2.0;                       // 复活瞬间无敌，避免刚站起来又被连击
+    t.freeze = .6;
+    t.vx = 0; t.targetVx = 0;
+    if(state.count === t.side) state.count = null;   // 取消本次读秒
+
+    /* —— 二阶段变身：场地翻倍 + 双方重置位置 + 时间恢复 60 秒 —— */
+    setCourt(BASE_COURT * 2);
+    const off = clamp(COURT * .5, 80, 150);           // 重置到开局站位（对称于场地中心）
+    player.x = -off; ai.x = off;
+    player.face = 1; ai.face = -1;
+    for(const g of [player, ai]){ g.vx = 0; g.targetVx = 0; g.stepT = 0; }
+    state.roundTime = 60;
+    state.countNum = 8;
+    state.countT = 0;
+
+    // —— 特效：大横幅 + 全屏白闪 + 双冲击环 + 金色爆发 + 慢动作 + 震屏 ——
+    announce('超级复活！场地扩大', 2.4, '#fbbf24');
+    flashA = 1.0; slowT = 1.2; shake(20, .9);
+    burst(t, 64, '#fbbf24', 15);
+    burst(t, 28, '#ffffff', 9);
+    rings.push({ x:t.x, y:t.h*.55, dur:1.0, life:1.0, r0:20, r1:360, color:'#fde047', lw:7 });
+    rings.push({ x:t.x, y:t.h*.55, dur:.7,  life:.7,  r0:10, r1:250, color:'#ffffff', lw:4 });
+    sfx('win', .65);
+    return;
+  }
+
+  if(t.kdCount >= t.kdLimit){
     t.hp = 0;
     t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.y = 0; t.cast=''; t.castT=0;
     burst(t, 30, '#ff3b5c', 8);
@@ -232,7 +274,7 @@ function knockdown(t, f){
     shake(14, .55);
     flashA = .9; slowT = 1.0;
     rings.push({ x:t.x, y:t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
-    announce('三倒判负', 1.8, '#ff3b5c');
+    announce('倒地判负', 1.8, '#ff3b5c');
     t.roundDone = true;
     if(t.side==='p'){ aiWins++; sfx('lose', .5); } else { roundWins++; sfx('win', .5); }
     endRound();

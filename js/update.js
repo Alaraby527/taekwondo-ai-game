@@ -281,10 +281,21 @@ function update(dt, t){
     p.x = clamp(p.x, -RING_LIMIT, RING_LIMIT);
     f.x = clamp(f.x, -RING_LIMIT, RING_LIMIT);
   }
-  // 面对面推挤（被动推挤不算出界，最多推到判罚线上）
+  /* 面对面推挤：按「谁在往对方方向动」分摊位移。
+     原实现只移动玩家（p.x = f.x ± gap），于是 AI 只要朝前压，
+     碰撞就把【玩家】一路推到墙角卡死 —— 出招时的前冲（尤其飞踢 175 单位）更明显。
+     现在主动前压的一方承担更多位移：双方都不动时才平分。 */
   const gap = (p.w + f.w)/2 + 12;
-  if(Math.abs(f.x - p.x) < gap){
-    if(p.x < f.x){ p.x = f.x - gap; } else { p.x = f.x + gap; }
+  const dx = f.x - p.x;
+  if(Math.abs(dx) < gap){
+    const overlap = gap - Math.abs(dx);
+    const dir = dx >= 0 ? 1 : -1;                 // 从玩家指向 AI 的方向
+    const pToward = Math.max(0,  p.vx * dir);     // 玩家朝 AI 的速度分量
+    const fToward = Math.max(0, -f.vx * dir);     // AI 朝玩家的速度分量
+    const tot = pToward + fToward;
+    const pShare = tot > 1 ? pToward / tot : 0.5; // 谁在动，谁多担
+    p.x -= dir * overlap * pShare;
+    f.x += dir * overlap * (1 - pShare);
   }
   p.x = clamp(p.x, -RING_LIMIT, RING_LIMIT);
   f.x = clamp(f.x, -RING_LIMIT, RING_LIMIT);

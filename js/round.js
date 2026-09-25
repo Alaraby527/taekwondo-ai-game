@@ -10,6 +10,7 @@ function WIN_NEED(){ return 1; }
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
 let matchRecorded = false;    // 防止同一场对局被记录两次
 function startRound(){
+  setCourt(BASE_COURT);                 // 每局都从基准场地开始（黑带二阶段会翻倍）
   const hp = Math.round(R().hp * .7);
   player.reset(hp); ai.reset(hp);
   /* Jev 战术层的行为统计按回合清零 */
@@ -23,7 +24,7 @@ function startRound(){
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
   state.intro = 2.4;                    // 开局倒计时（双方冻结）
-  state.roundTime = 30;                 // 一局决胜：30 秒
+  state.roundTime = R().roundTime || 30;  // 黑带为 60 秒（Boss 局更长），其余 30 秒
   hitLocks.clear();
   simClear();                           // 清掉上一局遗留的仿真时间回调
   sparks = []; rings = []; floats = []; flashA = 0; slowT = 0;

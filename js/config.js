@@ -21,7 +21,7 @@ const RANKS = [
   { name:'绿带', color:'#22c55e', ai:0.70, speed:1.24, hp:130, riseTime:2.8, tag:'进阶 AI' },
   { name:'蓝带', color:'#38bdf8', ai:0.82, speed:1.38, hp:150, riseTime:2.0, tag:'高手 AI' },
   { name:'红带', color:'#f97316', ai:0.93, speed:1.55, hp:172, riseTime:1.2, tag:'精英 AI' },
-  { name:'黑带', color:'#1f2937', ai:1.0,  speed:1.75, hp:293, riseTime:0.5, tag:'宗师 AI' },  // 195 × 1.5
+  { name:'黑带', color:'#1f2937', ai:1.0,  speed:1.75, hp:293, riseTime:0.5, roundTime:60, tag:'宗师 AI' },  // 195 × 1.5；Boss 局 60 秒
 ];
 let rankIdx = 0;
 let roundWins = 0, aiWins = 0;   // 一局决胜：0/1

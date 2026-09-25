@@ -42,6 +42,16 @@ function aiThink(dt, t){
   const edgeNear = Math.abs(f.x) > EDGE - 60;
   const guardOut = (vx) => (Math.abs(f.x) > EDGE && Math.sign(vx || 0) === Math.sign(f.x)) ? 0 : vx;
 
+  /* —— 防「推土机」 ——
+     碰撞解算推的是【玩家】：`if(Math.abs(f.x-p.x) < gap) p.x = f.x ± gap`。
+     所以 AI 持续前压 = 把玩家一路顶到墙角卡死（场地只有 ±342，夹取间隙约 64）。
+     这里用两个判据约束：
+       contact  —— 已经贴身（比夹取间隙略大）
+       pCorner  —— 对手已经被逼到界边
+     贴身且没在出招时不再朝对手加力；对手贴边时主动退到踢击射程外再打。 */
+  const contact = dist < (p.w + f.w) / 2 + 26;
+  const pCorner = Math.abs(p.x) > COURT + 42 - 100;
+
   /* 检测对手「刚落地」事件 —— 抓落地硬直（与飞踢 0.40s 落地恢复配合） */
   if(p._wasAir && !p.airborne && p.kd <= 0) f._punishT = 0.5;
   p._wasAir = p.airborne;
@@ -181,9 +191,14 @@ function aiThink(dt, t){
     else if(dist > farD){       // 远：快速逼近
       f.targetVx = wantFace * rand(250, 340) * rank.speed;
     } else if(dist < nearD){ // 近身：踢法压制为主
-      /* 贴边时先回场内：既避免被判出界，也为飞踢腾出前冲空间
-         （实测黑带会被顶到 |x|=342，此时朝外方向永远无法起飞） */
-      if(edgeNear){
+      /* 对手已被逼到界边：主动退到踢击射程外再打，不要继续压身体把人锁在墙角 */
+      if(pCorner){
+        f.targetVx = guardOut(-Math.sign(p.x) * rand(140, 230));
+        f.thinkT = rand(.18, .28);
+        if(f.canAct() && Math.random() < .5) tryKick(f);   // 边退边打，保持压力
+      }
+      /* AI 自己贴边时先回场内：既避免被判出界，也为飞踢腾出前冲空间 */
+      else if(edgeNear){
         f.targetVx = -Math.sign(f.x) * rand(180, 260);
         f.thinkT = rand(.18, .30);
       }
@@ -232,6 +247,11 @@ function aiThink(dt, t){
   }
 
   // 移动平滑：向目标速度连续趋近
+  /* 防推土机：贴身且没在出招时，不再朝对手方向加力 ——
+     碰撞解算推的是玩家，持续前压会把人一路顶到墙角卡死。 */
+  if(contact && f.state === 'idle' && Math.sign(f.targetVx || 0) === wantFace){
+    f.targetVx = 0;
+  }
   f.targetVx = guardOut(f.targetVx);
   if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt*10));
 }

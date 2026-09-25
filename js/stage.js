@@ -19,10 +19,19 @@ let SW = 0, SH = 0, BAR_B = 0, PORTRAIT = false;
    · 绘制世界物体时一律用 local y = -wy（即高度向上 → 画布 y 减小）
    · 屏幕映射全部经由 CAM，见 camApply() / projX() / projY()
    ===================================================================== */
-const COURT   = 300;    // WT 比赛区半径（世界单位）
-const RING_OUT = 384;   // 出界线半径（越出即判罚）
+const BASE_COURT = 300;                 // WT 比赛区半径基准（世界单位）
+let COURT    = BASE_COURT;              // 比赛区半径（黑带二阶段会翻倍，故为可变）
+let RING_OUT = Math.round(BASE_COURT * 1.28);   // 出界线半径（越出即判罚）
+let CORNER_X = COURT * 0.78;            // 读秒时双方各自回到的角落位置（WT：回角落再继续）
 const ART_H   = 118;    // 角色美术基准身高（世界单位），相机取景以此为参照
-const CORNER_X = COURT * 0.78;  // 读秒时双方各自回到的角落位置（WT：回角落再继续）
+
+/* 场地尺寸集中在这里改写（黑带「超级复活」二阶段会翻倍）。
+   所有引用点都是实时读取 COURT/RING_OUT/CORNER_X，因此改这里就够了。 */
+function setCourt(c){
+  COURT = c;
+  RING_OUT = Math.round(c * 1.28);
+  CORNER_X = c * 0.78;
+}
 
 /* 相机：跟随双方中点、按间距自适应推拉，含震屏与打击瞬间推近 */
 const CAM = {
