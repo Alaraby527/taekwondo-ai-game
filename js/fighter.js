@@ -164,7 +164,8 @@ function tryBlock(f, dur=0.5){
 /* 检测攻击命中：f 攻击方，t 防守方 */
 function resolveHit(f, t){
   if(t.invuln > 0) return;   // 起身后 1 秒无敌：刚站起来不该连吃第二下
-  const r = f.cast==='spinx' ? 130 : (f.cast==='back' ? 96 : (f.cast==='side' ? 105 : (f.cast==='axe' ? 88 : (f.state==='kick' ? 100 : 70))));
+  // 后踢(back)真实判定范围：由 96 收紧至 80（后蹬腿是直线穿透技，原判定过大导致远距离无感被蹭到）
+  const r = f.cast==='spinx' ? 130 : (f.cast==='back' ? 80 : (f.cast==='side' ? 105 : (f.cast==='axe' ? 88 : (f.state==='kick' ? 100 : 70))));
   const dist = Math.abs(t.x - f.x) - (f.w + t.w)/2;
   const inRange = dist < r;
   const facing = Math.sign(t.x - f.x) === f.face;

@@ -228,14 +228,16 @@ function aiThink(dt, t){
     // 格挡反应：玩家出招中，或 Jev 预判对手即将出腿
     // 增加对后踢的格挡：若玩家正处于后踢(back)前摇，属于转身旋转大招，AI 警惕性大幅提高
     const isBackKick = (p.cast === 'back' || (p.recentActs && p.recentActs[p.recentActs.length-1] === 'back'));
-    const backBonus = isBackKick ? (0.45 + skill * 0.45) : 0; // 后踢格挡大幅加成
+    const backBonus = isBackKick ? (0.65 + skill * 0.45) : 0; // 后踢格挡大幅加成
 
     const baseBlockSkill = Math.max(0, skill - 0.35);
     const blockP = baseBlockSkill * 0.85 + bias.block + jKickRisk * (skill >= 0.7 ? 0.35 : 0.15) + backBonus;
     const incoming = (p.state==='attack' || p.state==='kick');
-    if(dist < 165 && Math.random() < blockP && (incoming || isBackKick || (skill >= 0.7 && jKickRisk > .6))){
+    if(dist < 185 && Math.random() < blockP && (incoming || isBackKick || (skill >= 0.7 && jKickRisk > .6))){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
-      simLater(() => { if(f.state==='block') f.state='idle'; }, .35);
+      // 面对后踢时延长格挡架势持续时间（0.35s -> 0.52s），确保完整覆盖后踢的较长释放期
+      const blockDur = isBackKick ? .52 : .35;
+      simLater(() => { if(f.state==='block') f.state='idle'; }, blockDur);
     }
     // 特技：旋风踢（飞踢已提到上面的独立优先级分支，这里不再重复抽取，否则会叠加）
     if(f.state==='idle' && f.cast==='' && dist < 175 && dist > 40){

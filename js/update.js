@@ -250,7 +250,8 @@ function update(dt, t){
     const spinxHit = g.cast==='spinx' && g.phase === 2;
     const hitting = spinxHit || g.state==='attack' || g.state==='kick';
     if(hitting && !hitLocks.has(g)){
-      const delay = g.cast==='spinx' ? .04 : (g.cast==='back' ? .14 : (g.cast==='axe' ? .3 : (g.cast==='side' ? .2 : (g.state==='kick' ? (g.flyKick ? .18 : .24) : .05))));
+      // 后踢(back)前摇延后：由 0.14s 放宽至 0.22s（留出清晰的转身蓄力前摇，给玩家/AI 充足的格挡反应时间）
+      const delay = g.cast==='spinx' ? .04 : (g.cast==='back' ? .22 : (g.cast==='axe' ? .3 : (g.cast==='side' ? .2 : (g.state==='kick' ? (g.flyKick ? .18 : .24) : .05))));
       if(g.stT > delay){
         resolveHit(g, c.t);
         hitLocks.add(g);

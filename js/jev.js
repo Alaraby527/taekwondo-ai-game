@@ -106,9 +106,11 @@ function jevTick(t){
     });
 }
 
-/* 给 aiThink 用：3 秒内的决策才算有效 */
+/* 给 aiThink 与 panel 用：只要最近成功拿到过战术，就保持该战术指导，
+   避免因网络波动或间隔微差瞬间闪退回「纯本地 AI」；只有在长期未更新(>15s)时才降级 */
 function jevIntent(t){
   const it = JEV.intent;
-  if(!it || t - it.at > 3) return null;
+  if(!it) return null;
+  if(t && it.at && (t - it.at > 15)) return null;
   return it;
 }

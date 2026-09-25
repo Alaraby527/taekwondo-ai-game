@@ -55,13 +55,14 @@ function updatePanel(){
   // Jev 的 at 来自 frame(ts) 的页面时间（秒），不能用 SIM_T 判断新鲜度；
   // 后台节流或慢动作会让两套时钟逐渐偏离。
   const JI = (typeof jevIntent === 'function') ? jevIntent(performance.now() / 1000) : null;
-  if(JI){
+  // 只有在【完全没有拿到过意图】或【长期断连】时才判定为本地模式
+  if(JI && JEV.intent){
     $('dpTactic').textContent = TACTIC_CN[JI.tactic] || JI.tactic || '—';
     const pr = (JI.tactics && JI.tactics[JI.tactic]) || 0;
     $('dpProb').style.width = pct(pr);
     $('dpProbTxt').textContent = pct(pr);
     $('dpPredict').textContent = pct(JI.foeKick);
-    $('dpSrc').textContent = (JEV.lastSrc === 'cache') ? '缓存' : (JEV.lastSrc === 'jev' ? 'Jev' : '');
+    $('dpSrc').textContent = (JEV.lastSrc === 'cache') ? '缓存' : (JEV.lastSrc === 'jev' ? 'Jev' : 'Jev');
   } else {
     $('dpTactic').textContent = '纯本地 AI';
     $('dpProb').style.width = '0%';
