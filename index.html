@@ -445,8 +445,9 @@ class Fighter {
     this.windup = 0;                          // 旋风踢：蓄力计时
     this.phase = 0;                           // 旋风踢：0蓄力 1转体 2踢出 3收势 4结束
     this.lastPt = 0; this.lastPtT = 0;        // 最近命中得分（飘分显示）
+    this.kickTrail = [];                      // 踢击金色轨迹（脚部拖尾）
   }
-  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; }
   get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'||this.cast!==''; }
   get grounded(){ return this.kd<=0 && !this.airborne; }
   canAct(){ return this.kd<=0 && this.freeze<=0 && this.state==='idle' && this.cast===''; }
@@ -615,6 +616,7 @@ function resolveHit(f, t){
   t.hp -= dmg;
   sfx('hit', .45);
   shake(f.cast==='spinx' ? 11 : (f.flyKick ? 7 : 4.5), f.cast==='spinx' ? .3 : .16);
+  hitStopT = f.cast==='spinx' ? .09 : (f.flyKick ? .07 : .05);   // 命中定格（打击感）
   burst(t, f.cast==='spinx' ? 26 : 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', f.cast==='spinx' ? 8 : 6);
   // 击退
   t.vx = f.face * (f.cast==='spinx' ? 9 : 6);
@@ -710,13 +712,25 @@ function aiThink(dt){
 
 /* ---------- 更新 ---------- */
 let last = 0, hitLocks = new Set();
-/* 特效：震屏 / 大字播报 */
-let shakeT = 0, shakeDur = 1, shakeAmp = 0, bigMsg = null;
+/* 特效：震屏 / 大字播报 / 命中定格 */
+let shakeT = 0, shakeDur = 1, shakeAmp = 0, bigMsg = null, hitStopT = 0;
 function shake(amp, dur){ shakeAmp = Math.max(shakeAmp, amp); shakeDur = dur; shakeT = dur; }
 function announce(text, dur=1.4, color='#fbbf24'){ bigMsg = { text, t: dur, dur, color }; }
+/* 落地尘环（收势砸地扬尘） */
+function dustRing(f, n=12){
+  for(let i=0;i<n;i++){
+    const a = (i/n)*Math.PI*2;
+    f.particle.push({ x:f.x + Math.cos(a)*12, y:(f.y||0) - 2,
+      vx:Math.cos(a)*rand(2,4.5), vy:-rand(.4,2), life:rand(.3,.5), max:.5,
+      r:rand(1.5,3.2), color:'rgba(150,165,190,.65)' });
+  }
+}
 function update(dt, t){
   if(window.__pause) return;   // 调试暂停（浏览器自动化用）
   const p = player, f = ai;
+
+  // 命中定格：击中瞬间全局子弹时间（打击感）
+  if(hitStopT > 0){ hitStopT -= dt; dt *= .12; }
 
   // 特效计时衰减
   shakeT = Math.max(0, shakeT - dt);
@@ -801,6 +815,13 @@ function update(dt, t){
     // 单动作滞留：kick（含全部踢法，旋风踢全流程约 1.4s）/ attack 超时强制收势
     if(g.state==='kick' && g.stT > 2.0){ g.state='idle'; g.cast=''; g.flyKick=false; g.phase=0; hitLocks.delete(g); }
     if(g.state==='attack' && g.stT > 0.6){ g.state='idle'; }
+    // 踢击轨迹衰减
+    if(g.kickTrail && g.kickTrail.length){
+      for(let i=g.kickTrail.length-1;i>=0;i--){ g.kickTrail[i].life -= dt; if(g.kickTrail[i].life <= 0) g.kickTrail.splice(i,1); }
+    }
+    // 落地尘环：下劈收腿砸地（一次性）
+    if(g.cast==='axe' && g.stT > .38 && !g._dust){ g._dust = true; dustRing(g); }
+    if(g.cast!=='axe' && g._dust) g._dust = false;
     // 步态/呼吸幅度缓动：停止时腿摆平滑收势（相位不跳变），AI 行走同样摆腿
     const moving = Math.abs(g.vx) > 40 && g.grounded && g.kd<=0;
     if(moving){
@@ -834,7 +855,8 @@ function update(dt, t){
         g.stT += dt;
         g.vx = g.face * 300;                       // 前冲踢出
         // 命中判定由外部 hitting 逻辑触发（cast==='spinx' && phase===2）
-        if(g.stT > .22) g.phase = 3;
+    // 旋风踢收势落地尘环（phase 2→3 转换点，一次性）
+    if(g.stT > .22){ g.phase = 3; dustRing(g); }
       } else if(g.phase === 3){
         // 收势落地
         g.vx = lerp(g.vx, 0, dt*4);
@@ -1140,29 +1162,21 @@ function drawFighter(f, t, dt){
   // 旋风踢（标准 Tornado Kick）：撤步转身蓄力 → 以支撑脚为轴转体 → 后腿从后向前画弧横扫（前旋踢）
   const isSpinx = f.cast==='spinx';
   if(isSpinx){
-    // 侧视表达绕纵轴转体：镜像翻转 + 轻微 z 轴倾斜（示意旋转动感）
-    // cyc: 0 正立 → 0.5 撤步转身背对 → 1 转完一圈回到正面
-    if(f.phase === 0){
-      // 蓄力撤步：身体后转 180°（0→0.5，镜像 + 微倾）
-      const flip = f.cyc > .25 ? -1 : 1;
-      ctx.scale(flip, 1);
-      ctx.rotate(-f.face * (f.cyc < .25 ? f.cyc * 1.2 : (f.cyc - .25) * 0.8));
-    } else if(f.phase === 1){
-      // 转体：cyc 0.5→1，背对状态快速转回正面（镜像 + 小角度倾斜 + 残影）
-      const flip = f.cyc < .75 ? -1 : 1;
-      ctx.scale(flip, 1);
-      ctx.rotate(-f.face * 0.22);            // 转体时轻微侧倾（动感，非躺倒）
-    } else if(f.phase === 2){
-      // 踢出：回到正面，微倾收尾
-      ctx.rotate(f.face * 0.18);
+    // 绕纵轴「连续旋转」：scaleX = cos(cyc·2π)，1→0→-1→0→1 平滑形变
+    //（正面→侧面压扁→背面→回正，真转体感；旧版镜像硬切像纸片翻面）
+    if(f.phase <= 2){
+      const rotX = Math.abs(Math.cos(f.cyc * Math.PI * 2)) < .04 ? .04*Math.sign(Math.cos(f.cyc*Math.PI*2)||1) : Math.cos(f.cyc * Math.PI * 2);
+      ctx.scale(rotX, 1);
     }
-    // 残影（拖尾画 3 个淡影，表达快速转体轨迹）
+    if(f.phase === 1) ctx.rotate(-f.face * .18);       // 转体侧倾
+    if(f.phase === 2) ctx.rotate(f.face * .18);        // 踢出微倾
+    // 多重残影（转体轨迹扇）
     ctx.save();
-    ctx.globalAlpha = .14;
-    for(let i=1;i<=3;i++){
+    ctx.globalAlpha = .12;
+    for(let i=1;i<=4;i++){
       ctx.save();
-      ctx.translate(-f.face*i*6*s, 0);
-      ctx.rotate(-f.cyc*0.8 - i*.5);
+      ctx.translate(-f.face*i*7*s, 0);
+      ctx.rotate(-f.cyc*0.9 - i*.55);
       ctx.fillStyle = colorGlow + '.4)';
       ctx.fillRect(-12*s, -86*s, 24*s, 86*s);
       ctx.restore();
@@ -1292,6 +1306,7 @@ function drawFighter(f, t, dt){
     ctx.beginPath(); ctx.ellipse(fx2 + 2.5*s, fy2 + 1.2*s, 5.4*s, 2.8*s, 0, 0, Math.PI*2);
     ctx.fillStyle = footC; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
+    return [fx2, fy2];
   };
   const drawArm = (sx, upperA, foreA, cIn, fist) => {
     const ex = sx*s - Math.sin(upperA)*11*s, ey = shY + 3*s + Math.cos(upperA)*11*s;
@@ -1364,7 +1379,15 @@ function drawFighter(f, t, dt){
   ctx.strokeRect(-11*s, hipY - 3*s, 22*s, 4.5*s);
 
   // 近端腿（前腿：踢击/stance，大开立）
-  if(kickPose) drawLeg(4, kickPose.kneeA, kickPose.shinA, cloth, skin);
+  if(kickPose){
+    const foot = drawLeg(4, kickPose.kneeA, kickPose.shinA, cloth, skin);
+    // 踢击金色轨迹：记录脚的世界坐标（拖尾渲染在 restore 后）
+    if(f.state==='kick'){
+      const trail = (f.kickTrail = f.kickTrail || []);
+      trail.push({ x: f.x + foot[0]*f.face, y: GROUND - (f.y||0) + foot[1], life: .38 });
+      if(trail.length > 26) trail.shift();
+    }
+  }
   else drawLeg(5, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin);
 
   // 脖子（衔接头与躯干）
@@ -1410,6 +1433,18 @@ function drawFighter(f, t, dt){
   }
 
   ctx.restore();   // 结束朝向镜像（粒子用世界坐标差值，不参与镜像）
+
+  // 踢击金色轨迹（世界坐标拖尾，渲染在镜像 restore 后）
+  if(f.kickTrail && f.kickTrail.length){
+    for(const tp of f.kickTrail){
+      ctx.globalAlpha = clamp(tp.life/.38, 0, 1)*.8;
+      ctx.fillStyle = '#fcd34d';
+      ctx.beginPath();
+      ctx.arc(tp.x - f.x, tp.y - GROUND + (f.y||0), (2.6*tp.life/.38 + .8)*s, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
 
   // 粒子
   for(const pt of f.particle){
