@@ -25,6 +25,7 @@ function startRound(){
   state.intro = 2.4;                    // 开局倒计时（双方冻结）
   state.roundTime = 30;                 // 一局决胜：30 秒
   hitLocks.clear();
+  simClear();                           // 清掉上一局遗留的仿真时间回调
   sparks = []; rings = []; floats = []; flashA = 0; slowT = 0;
   sfx('bell', .35);
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;

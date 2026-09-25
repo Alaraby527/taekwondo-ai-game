@@ -25,3 +25,24 @@ const mixC = (a, b, k) => {   // '#rrggbb' 颜色插值（k=0→a, 1→b）
 const FONT = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif';
 const fnt = (w, s) => `${w} ${s}px ${FONT}`;
 
+/* ---------- 仿真时间调度 ----------
+   状态切换必须用「仿真时间」，不能混用「真实时间」：
+   原实现用 setTimeout(真实时间) 清除出招状态，而命中判定用 stT(仿真时间)。
+   帧率低、或标签页被浏览器节流时两者会脱节 —— 状态先被真实时间清掉，
+   而命中窗口（stT > 0.24）还没打开，攻击就静默落空。
+   实测：当仿真只有真实时间的 0.25 倍时，攻击 100% 打不中。
+   低端手机上同理（dt 封顶会让仿真慢于真实），摊位用的正是低端机，因此统一到仿真时间。 */
+let SIM_T = 0;
+const _simTimers = [];
+function simLater(fn, delay){ _simTimers.push({ fn, at: SIM_T + Math.max(0, delay) }); }
+function simClear(){ _simTimers.length = 0; }
+function simTick(dt){
+  SIM_T += dt;
+  for(let i = _simTimers.length - 1; i >= 0; i--){
+    if(_simTimers[i].at <= SIM_T){
+      const job = _simTimers.splice(i, 1)[0];
+      try{ job.fn(); }catch(e){ /* 单个回调异常不影响其它调度 */ }
+    }
+  }
+}
+

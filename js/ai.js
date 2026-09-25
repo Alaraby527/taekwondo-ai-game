@@ -63,12 +63,18 @@ function aiThink(dt, t){
        结果玩家一跳起来 AI 只会用 90 的速度慢慢后退，几乎必然被打中）
      位置：所有 targetVx 都过 guardOut()，保证不会朝界外移动 */
   if(p.airborne && !f.airborne){
-    const closing = (f.x - p.x) * Math.sign(p.vx || (f.x - p.x)) > 0 && dist < 200;
+    /* 先区分「真有威胁的空中攻击」与「原地跳」：
+       · 空中出腿（flyKick / state==='kick'）且带前冲 —— 才是威胁，按段位应对
+       · 原地跳：jumpH≈0、没出腿，且在空中的一方无法格挡 —— 应该反过来打它。
+         原来这里一律后撤 110，导致玩家只要连续跳跃就能把 AI 一路逼到角落。 */
+    const airThreat = p.flyKick || p.state === 'kick';
+    const incoming = Math.abs(p.jumpH || 0) > 60 || Math.abs(p.vx || 0) > 120;
     const react = 0.35 + skill * 0.5;
-    if(closing && dist < 195){
+
+    if(airThreat && incoming && dist < 220){
       if(skill >= 0.8){
-        /* 高段位：起跳瞬间就对拼偷伤害（不再后退） */
-        if(f.canAct() && dist < 178){
+        /* 高段位：不与后撤，起跳阶段直接对拼偷伤害 */
+        if(f.canAct() && dist < 185){
           f.thinkT = rand(.14, .24);
           if(Math.random() < 0.72) tryKick(f);          // 横踢迎击，判定够长
           else startBackKick(f);                        // 旋转技：头击 3 分且带额外分
@@ -78,13 +84,21 @@ function aiThink(dt, t){
         }
       } else if(Math.random() < react * 0.7 || edgeNear){
         f.state = 'block'; f.holdBlock = true; f.cool = Math.max(f.cool, .3);
-        setTimeout(() => { if(f.state==='block'){ f.state='idle'; f.holdBlock = false; } }, 400);
+        simLater(() => { if(f.state==='block'){ f.state='idle'; f.holdBlock = false; } }, .4);
         f.targetVx = 0;
       } else {
         f.targetVx = guardOut(-wantFace * (200 + skill * 120));   // 后撤让飞踢落空
       }
     } else {
-      f.targetVx = guardOut(-wantFace * 110);               // 不构成威胁，稍退观察
+      /* 原地跳 / 空中不出腿：不构成威胁，反而是破绽 —— 压上去打。
+         中低段位也打，只是打得没高段位果断；只有贴边时才不乱冲。 */
+      if(f.canAct() && dist < 175 && !edgeNear){
+        f.thinkT = rand(.18, .30);
+        if(Math.random() < 0.45 + skill * 0.45) tryKick(f);
+        else f.targetVx = guardOut(wantFace * 150);
+      } else {
+        f.targetVx = guardOut(wantFace * 90);         // 逼近而不是后退
+      }
     }
     f.thinkT = Math.min(f.thinkT, 0.12);
     if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt * 12));
@@ -206,7 +220,7 @@ function aiThink(dt, t){
     const incoming = (p.state==='attack' || p.state==='kick');
     if(dist < 150 && Math.random() < blockP && (incoming || jKickRisk > .6)){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
-      setTimeout(() => { if(f.state==='block') f.state='idle'; }, 350);
+      simLater(() => { if(f.state==='block') f.state='idle'; }, .35);
     }
     // 特技：旋风踢（飞踢已提到上面的独立优先级分支，这里不再重复抽取，否则会叠加）
     if(f.state==='idle' && f.cast==='' && dist < 175 && dist > 40){

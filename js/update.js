@@ -19,6 +19,7 @@ function dustRing(f, n=12){
 }
 function update(dt, t){
   if(window.__pause) return;   // 调试暂停（浏览器自动化用）
+  simTick(dt);                 // 推进仿真时间调度（所有状态切换都挂在它上面）
   const p = player, f = ai;
 
   // 命中定格：击中瞬间全局子弹时间（打击感）

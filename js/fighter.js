@@ -65,11 +65,13 @@ function tryPunch(f){
   if(f.state==='block') f.holdBlock = false;
   f.state = 'attack'; f.stT = 0; f.anim = 1; f.cool = 1.4;
   sfx('punch', .2);
-  setTimeout(() => { if(f.state==='attack') f.state='idle'; }, 340);
+  simLater(() => { if(f.state==='attack') f.state='idle'; }, .34);
 }
 function tryKick(f){
   // 连按踢序列（0.5s 窗口）：第 1 下=横踢 → 第 2 下=下劈 → 第 3 下=旋风踢（实战连招，可打断当前踢）
-  const now = performance.now()/1000;
+  /* 连按踢序列（0.5s 窗口）：第 1 下=横踢 → 第 2 下=下劈 → 第 3 下=旋风踢（实战连招，可打断当前踢）
+     注：用仿真时间 SIM_T 而不是 performance.now()，否则连招窗口在低帧率下会失真 */
+  const now = SIM_T;
   if(f.kickBuf.length>0 && now - f.kickBuf[f.kickBuf.length-1] < .5){
     f.kickBuf.push(now); f.kickBufT = .5;
     const n = f.kickBuf.length;
@@ -99,7 +101,7 @@ function tryKick(f){
   if(f.state==='block') f.holdBlock = false;
   f.state = 'kick'; f.stT = 0; f.anim = 1.6; f.cool = 0.85;
   sfx('kick', .3);
-  setTimeout(() => { if(f.state==='kick' && !['spinx','back','axe','side'].includes(f.cast)) f.state='idle'; }, 500);
+  simLater(() => { if(f.state==='kick' && !['spinx','back','axe','side'].includes(f.cast)) f.state='idle'; }, .5);
 }
 function startAxe(f){
   // 下劈（naeryo chagi）：直腿从头上方弧线劈下，主打头部（3 分）
@@ -108,7 +110,7 @@ function startAxe(f){
   f.face = f.side==='p' ? (ai.x > f.x ? 1 : -1) : (player.x > f.x ? 1 : -1);
   hitLocks.delete(f);
   sfx('kick', .35);
-  setTimeout(() => { if(f.cast==='axe'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, 720);
+  simLater(() => { if(f.cast==='axe'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, .72);
 }
 function startSide(f){
   // 侧踢（yop chagi）：翻髋折叠 → 前冲直线踹（脚跟领先）
@@ -117,7 +119,7 @@ function startSide(f){
   f.face = f.side==='p' ? (ai.x > f.x ? 1 : -1) : (player.x > f.x ? 1 : -1);
   hitLocks.delete(f);
   sfx('kick', .3);
-  setTimeout(() => { if(f.cast==='side'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, 640);
+  simLater(() => { if(f.cast==='side'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, .64);
 }
 function startBackKick(f){
   // 后踢（dwit chagi）：转身背对瞬间以脚跟蹬击躯干——旋转技术，3 分
@@ -127,7 +129,7 @@ function startBackKick(f){
   f.kickBuf = []; f.kickBufT = 0;
   hitLocks.delete(f);   // 独立动作，允许重新判定命中
   sfx('kick', .35);
-  setTimeout(() => { if(f.cast==='back'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, 480);
+  simLater(() => { if(f.cast==='back'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, .48);
 }
 function startFlyingKick(f){
   // 飞踢：助跑起跳 → 腾空屈膝上提 → 空中出腿前伸 → 落地
@@ -136,7 +138,7 @@ function startFlyingKick(f){
   f.jumpV = 460; f.jumpH = f.face * 400; f.airborne = true;   // 跃起前冲（弧线更高）
   f.flyKick = true;   // 标记飞踢
   sfx('kick', .4);
-  setTimeout(() => { if(f.state==='kick' && !f.flyKick) f.state='idle'; }, 460);
+  simLater(() => { if(f.state==='kick' && !f.flyKick) f.state='idle'; }, .46);
 }
 function startSpinx(f){
   // 旋风踢（标准动作）：撤步转身蓄力（背对对手）→ 转体 360° 后腿横扫前旋踢 → 落地
@@ -154,7 +156,7 @@ function startSpinx(f){
 function tryBlock(f, dur=0.5){
   if(!f.canAct()) return;
   f.state = 'block'; f.stT = 0; f.cool = 0.4;
-  setTimeout(() => { if(f.state==='block') f.state='idle'; }, dur*1000);
+  simLater(() => { if(f.state==='block') f.state='idle'; }, dur);
 }
 
 /* 检测攻击命中：f 攻击方，t 防守方 */
