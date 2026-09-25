@@ -4,191 +4,393 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>跆拳道 · AI 对战 | 抖音校园 WowLand</title>
-<meta name="description" content="上海理工大学 · 跆拳道社 × AI：操控小人挑战 AI 跆拳道高手，三局两胜 KO 制！感受 AI 与跆拳道的双重魅力。">
+<meta name="description" content="上海理工大学 · 跆拳道社 × AI：操控选手挑战 AI 跆拳道高手，五局三胜 KO 制！感受 AI 与跆拳道的双重魅力。">
 <style>
   :root{
-    --bg:#0b0e17;
-    --panel:#131a2b;
-    --line:#24304d;
+    --bg:#05070d;
+    --panel:rgba(15,21,38,.66);
+    --panel-solid:#0d1424;
+    --line:rgba(126,156,220,.16);
+    --line-strong:rgba(126,156,220,.30);
     --cyan:#22d3ee;
-    --cyan-glow:rgba(34,211,238,.55);
+    --cyan-soft:rgba(34,211,238,.14);
     --red:#ff3b5c;
-    --red-glow:rgba(255,59,92,.55);
+    --red-soft:rgba(255,59,92,.14);
     --gold:#fbbf24;
-    --text:#e8eefc;
-    --dim:#93a3c7;
+    --text:#eaf2ff;
+    --dim:#8fa3c8;
+    --dim-deep:#5b6c90;
+    --font:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;touch-action:manipulation;}
   body{
     background:var(--bg);
     color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;
+    font-family:var(--font);
     overflow:hidden;
     user-select:none;
     -webkit-user-select:none;
   }
-  /* 背景网格+光晕 */
-  .bgfx{position:fixed;inset:0;pointer-events:none;z-index:0;
+
+  /* ============ 全局背景（引导页用） ============ */
+  .bgfx{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
     background:
-      radial-gradient(1200px 600px at 20% -10%, rgba(34,211,238,.10), transparent 60%),
-      radial-gradient(1000px 500px at 85% 110%, rgba(255,59,92,.10), transparent 60%),
+      radial-gradient(1100px 560px at 18% -8%, rgba(34,211,238,.13), transparent 62%),
+      radial-gradient(1000px 520px at 86% 112%, rgba(255,59,92,.11), transparent 62%),
+      radial-gradient(760px 420px at 55% 46%, rgba(139,92,246,.07), transparent 65%),
       var(--bg);}
-  .bgfx::after{content:"";position:absolute;inset:0;
-    background-image:linear-gradient(rgba(120,150,220,.05) 1px,transparent 1px),
-                     linear-gradient(90deg, rgba(120,150,220,.05) 1px,transparent 1px);
-    background-size:48px 48px;}
+  .bgfx::before{content:"";position:absolute;inset:0;
+    background-image:linear-gradient(rgba(126,156,220,.05) 1px,transparent 1px),
+                     linear-gradient(90deg, rgba(126,156,220,.05) 1px,transparent 1px);
+    background-size:52px 52px;
+    mask-image:radial-gradient(900px 620px at 50% 38%, #000 30%, transparent 78%);
+    -webkit-mask-image:radial-gradient(900px 620px at 50% 38%, #000 30%, transparent 78%);}
+  .bgfx .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;}
+  .bgfx .orb.a{width:420px;height:420px;left:-140px;top:12%;
+    background:radial-gradient(circle at 40% 40%, rgba(34,211,238,.34), transparent 70%);
+    animation:drift1 13s ease-in-out infinite alternate;}
+  .bgfx .orb.b{width:380px;height:380px;right:-120px;bottom:8%;
+    background:radial-gradient(circle at 60% 40%, rgba(255,59,92,.30), transparent 70%);
+    animation:drift2 16s ease-in-out infinite alternate;}
+  @keyframes drift1{from{transform:translate(0,0) scale(1);}to{transform:translate(70px,50px) scale(1.12);}}
+  @keyframes drift2{from{transform:translate(0,0) scale(1.08);}to{transform:translate(-60px,-46px) scale(.96);}}
 
-  /* ===== 引导页 ===== */
-  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:20px;gap:18px;overflow-y:auto;}
+  /* ============ 引导页 ============ */
+  .screen{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    padding:22px;overflow-y:auto;}
   .hidden{display:none !important;}
-  .landing-card{
-    width:min(680px,100%);background:linear-gradient(160deg,rgba(24,33,58,.92),rgba(14,19,36,.94));
-    border:1px solid var(--line);border-radius:20px;padding:28px 26px;
-    box-shadow:0 0 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
-    display:flex;flex-direction:column;gap:16px;position:relative;overflow:hidden;}
-  .landing-card::before{content:"";position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(500px 240px at 85% 0%, rgba(34,211,238,.08), transparent 60%);}
-  .badge-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .badge{font-size:11px;letter-spacing:.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);
-    color:var(--dim);background:rgba(255,255,255,.03);}
-  .badge.hot{border-color:rgba(251,191,36,.45);color:var(--gold);}
-  h1.logo{font-size:clamp(22px,5vw,34px);font-weight:800;letter-spacing:2px;line-height:1.25;
-    background:linear-gradient(90deg,#67e8f9,#38bdf8 45%,#ff3b5c 110%);-webkit-background-clip:text;background-clip:text;color:transparent;}
-  .sub{color:var(--dim);font-size:13px;line-height:1.6;}
-  .sub b{color:var(--text);}
-  .perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
-  .perk{border:1px solid var(--line);border-radius:12px;padding:12px 12px;background:rgba(255,255,255,.03);}
-  .perk .icon{font-size:20px;}
-  .perk .t{font-size:14px;font-weight:700;margin:6px 0 2px;}
-  .perk .d{font-size:11.5px;color:var(--dim);line-height:1.5;}
-  .qr-zone{display:flex;align-items:center;gap:16px;border:1px dashed var(--line);border-radius:14px;
-    padding:14px 16px;background:rgba(34,211,238,.03);flex-wrap:wrap;}
-  .qr-frame{width:148px;height:148px;flex:none;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;
-    color:#0b0e17;font-size:13px;text-align:center;padding:5px;overflow:hidden;position:relative;}
-  .qr-frame img{width:100%;height:100%;object-fit:contain;object-position:center;}
-  .qr-frame img.inv{filter:invert(1);}   /* 黑底白码 → 白底黑码，提升扫码兼容性 */
-  .qr-placeholder{font-size:13px;color:#5a6b8c;line-height:1.6;font-weight:600;}
-  .qr-item{display:flex;flex-direction:column;align-items:center;gap:6px;}
-  .qr-label{font-size:11.5px;font-weight:700;color:var(--dim);white-space:nowrap;}
-  .qr-label.small{font-size:10.5px;}
-  .qr-side{flex:1;min-width:180px;}
-  .qr-side .t{font-weight:700;font-size:15px;}
-  .qr-side .d{font-size:12px;color:var(--dim);line-height:1.6;margin-top:4px;}
-  .howto{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--dim);}
-  .howto .k{display:inline-flex;align-items:center;gap:6px;}
-  .keycap{display:inline-block;background:#1b2440;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;
-    padding:2px 7px;font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#cfe0ff;}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;cursor:pointer;font-weight:800;
-    border-radius:12px;font-size:16px;letter-spacing:1px;padding:14px 22px;transition:transform .12s, box-shadow .12s, filter .12s;
-    text-decoration:none;color:#071018;}
-  .btn:active{transform:translateY(1px) scale(.99);}
-  .btn-primary{background:linear-gradient(90deg,#22d3ee,#38bdf8);box-shadow:0 8px 30px rgba(34,211,238,.35);}
-  .btn-primary:hover{filter:brightness(1.08);box-shadow:0 8px 40px rgba(34,211,238,.5);}
-  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:13px;}
-  .btn-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:2px;}
-  .foot-note{font-size:11px;color:#5a6b8c;text-align:center;line-height:1.6;}
+  .landing{width:min(880px,100%);margin:auto;position:relative;
+    animation:rise .7s cubic-bezier(.2,.8,.2,1) both;}
+  @keyframes rise{from{opacity:0;transform:translateY(26px);}to{opacity:1;transform:none;}}
 
-  /* ===== 游戏页 ===== */
+  .top-strip{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:0 6px 16px;flex-wrap:wrap;}
+  .club-line{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--dim);letter-spacing:1px;}
+  .club-line .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);
+    box-shadow:0 0 10px rgba(251,191,36,.9);}
+  .free-tag{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;
+    padding:4px 12px;background:rgba(255,255,255,.02);letter-spacing:1px;}
+
+  .hero{position:relative;text-align:center;padding:30px 16px 8px;}
+  .hero .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:4px;
+    color:#9be8f5;border:1px solid rgba(34,211,238,.35);border-radius:999px;padding:6px 16px;
+    background:linear-gradient(90deg, rgba(34,211,238,.10), rgba(139,92,246,.08));
+    box-shadow:0 0 26px rgba(34,211,238,.14);}
+  .hero h1{margin:20px 0 12px;font-size:clamp(30px,8.6vw,68px);font-weight:900;letter-spacing:3px;line-height:1.1;
+    background:linear-gradient(180deg,#ffffff 12%,#a5ecff 46%,#22d3ee 72%,#0e7490 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 30px rgba(34,211,238,.35));}
+  .hero h1 .vs{background:linear-gradient(180deg,#ffd7de 10%,#ff6d89 55%,#ff3b5c 90%);
+    -webkit-background-clip:text;background-clip:text;}
+  .hero .tagline{font-size:clamp(13px,2.2vw,15.5px);color:var(--dim);letter-spacing:2px;}
+  .hero .tagline b{color:var(--text);}
+  .hero .rules-line{margin:14px auto 0;display:inline-flex;flex-wrap:wrap;justify-content:center;gap:6px 0;
+    font-size:12px;color:var(--dim);}
+  .hero .rules-line .chip{padding:4px 12px;border:1px solid var(--line);background:rgba(255,255,255,.025);
+    border-radius:999px;margin:0 3px;}
+  .hero .rules-line .chip b{color:var(--gold);font-weight:800;}
+
+  /* VS 对决卡 */
+  .versus{display:grid;grid-template-columns:1fr 92px 1fr;align-items:stretch;gap:0;
+    width:min(640px,100%);margin:26px auto 0;}
+  .vs-card{position:relative;border-radius:16px;padding:14px 16px 13px;overflow:hidden;text-align:left;
+    border:1px solid var(--line-strong);background:linear-gradient(160deg,rgba(21,30,54,.85),rgba(11,16,30,.9));}
+  .vs-card.left::before{content:"";position:absolute;inset:0;
+    background:linear-gradient(120deg, rgba(34,211,238,.16), transparent 55%);}
+  .vs-card.right::before{content:"";position:absolute;inset:0;
+    background:linear-gradient(240deg, rgba(255,59,92,.16), transparent 55%);}
+  .vs-card .who{font-size:17px;font-weight:900;letter-spacing:1px;padding-right:26px;}
+  .vs-card.left .who{color:#7dedff;}
+  .vs-card.right .who{color:#ff9db0;}
+  .vs-card .role{font-size:11.5px;color:var(--dim);margin-top:3px;letter-spacing:1px;}
+  .vs-card .belt-dot{position:absolute;right:14px;top:14px;width:22px;height:8px;border-radius:4px;
+    box-shadow:0 0 12px currentColor;}
+  .vs-card.left .belt-dot{background:#e8eefc;color:rgba(232,238,252,.6);}
+  .vs-mid{display:flex;align-items:center;justify-content:center;}
+  .vs-mid .vstar{width:54px;height:54px;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:17px;font-style:italic;color:#0c1220;
+    background:linear-gradient(135deg,#fde68a,#f59e0b);
+    clip-path:polygon(50% 0%,63% 37%,100% 50%,63% 63%,50% 100%,37% 63%,0% 50%,37% 37%);
+    filter:drop-shadow(0 0 14px rgba(251,191,36,.55));}
+
+  /* 特性卡 */
+  .perks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:min(720px,100%);margin:24px auto 0;}
+  @media (max-width:640px){.perks{grid-template-columns:1fr;}}
+  .perk{position:relative;border:1px solid var(--line);border-radius:16px;padding:16px 15px 14px;
+    background:linear-gradient(165deg,rgba(22,30,54,.6),rgba(10,15,29,.72));overflow:hidden;
+    transition:transform .18s, border-color .18s;}
+  .perk:hover{transform:translateY(-3px);border-color:var(--line-strong);}
+  .perk .ic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:10px;background:var(--cyan-soft);border:1px solid rgba(34,211,238,.3);}
+  .perk:nth-child(2) .ic{background:var(--red-soft);border-color:rgba(255,59,92,.3);}
+  .perk:nth-child(3) .ic{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.3);}
+  .perk .ic svg{width:19px;height:19px;stroke:#9be8f5;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .perk:nth-child(2) .ic svg{stroke:#ffb3c0;}
+  .perk:nth-child(3) .ic svg{stroke:#fde68a;}
+  .perk .t{font-size:14.5px;font-weight:800;letter-spacing:.5px;}
+  .perk .d{font-size:12px;color:var(--dim);line-height:1.65;margin-top:5px;}
+
+  /* 段位阶梯 */
+  .belts{display:flex;align-items:center;justify-content:center;gap:8px;margin:22px auto 0;flex-wrap:wrap;}
+  .belts .lab{font-size:11.5px;color:var(--dim-deep);letter-spacing:2px;margin-right:4px;}
+  .belt{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--dim);
+    border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 7px;background:rgba(255,255,255,.02);}
+  .belt i{width:16px;height:16px;border-radius:6px;box-shadow:inset 0 0 4px rgba(0,0,0,.4);}
+  .belt.last{border-color:rgba(251,191,36,.45);color:var(--gold);
+    box-shadow:0 0 18px rgba(251,191,36,.12);}
+  .belts .arr{color:var(--dim-deep);font-size:11px;}
+
+  /* 操作说明 */
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:min(720px,100%);margin:22px auto 0;}
+  @media (max-width:640px){.controls{grid-template-columns:1fr;}}
+  .ctrl-box{border:1px solid var(--line);border-radius:16px;padding:14px 16px;
+    background:rgba(10,15,29,.55);}
+  .ctrl-box .h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;
+    letter-spacing:1px;color:#cfe0ff;margin-bottom:10px;}
+  .ctrl-box .h .tag{font-size:10px;font-weight:700;color:var(--bg);background:linear-gradient(90deg,#67e8f9,#38bdf8);
+    border-radius:5px;padding:2px 7px;letter-spacing:1px;}
+  .ctrl-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);
+    padding:4.5px 0;line-height:1.5;flex-wrap:wrap;}
+  .ctrl-row b{color:var(--text);font-weight:600;}
+  .keycap{display:inline-block;min-width:22px;text-align:center;background:linear-gradient(180deg,#232f52,#171f3a);
+    border:1px solid var(--line-strong);border-bottom-width:2.5px;border-radius:7px;
+    padding:2.5px 8px;font-size:11px;font-family:ui-monospace,Menlo,monospace;color:#d7e5ff;font-weight:700;}
+  .ctrl-row .hl{color:var(--gold);}
+
+  /* CTA */
+  .cta-zone{text-align:center;margin:28px 0 6px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;cursor:pointer;
+    font-weight:900;font-family:var(--font);
+    border-radius:16px;font-size:17px;letter-spacing:3px;padding:17px 44px;
+    transition:transform .15s, box-shadow .15s, filter .15s;
+    text-decoration:none;color:#04121a;}
+  .btn:active{transform:translateY(2px) scale(.985);}
+  .btn-primary{position:relative;color:#03131b;
+    background:linear-gradient(135deg,#7df3ff,#22d3ee 45%,#0ea5e9);
+    box-shadow:0 10px 40px rgba(34,211,238,.38), inset 0 1px 0 rgba(255,255,255,.55);}
+  .btn-primary:hover{filter:brightness(1.07);box-shadow:0 14px 52px rgba(34,211,238,.55), inset 0 1px 0 rgba(255,255,255,.55);}
+  .btn-primary::after{content:"";position:absolute;inset:-3px;border-radius:19px;z-index:-1;
+    background:linear-gradient(135deg,rgba(34,211,238,.5),rgba(255,59,92,.35));
+    filter:blur(14px);opacity:.6;animation:pulse 2.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.45;}50%{opacity:.85;}}
+  .cta-note{margin-top:12px;font-size:11.5px;color:var(--dim-deep);letter-spacing:1px;}
+
+  /* 二维码区 */
+  .qr-zone{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+    width:min(720px,100%);margin:26px auto 0;}
+  @media (max-width:560px){.qr-zone{grid-template-columns:1fr;}}
+  .qr-card{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:18px;
+    padding:16px;background:linear-gradient(160deg,rgba(21,30,54,.55),rgba(10,15,29,.7));}
+  .qr-frame{width:108px;height:108px;flex:none;background:#fff;border-radius:12px;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;padding:6px;
+    box-shadow:0 6px 24px rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,0,0,.06);}
+  .qr-frame img{width:100%;height:100%;object-fit:contain;}
+  .qr-side .t{font-size:14px;font-weight:800;letter-spacing:.5px;}
+  .qr-side .d{font-size:11.5px;color:var(--dim);line-height:1.7;margin-top:6px;}
+  .qr-side .d em{font-style:normal;color:#9be8f5;}
+  .qr-side .d em.g{color:#fde68a;}
+
+  .foot-note{font-size:11px;color:var(--dim-deep);text-align:center;line-height:1.8;
+    margin:26px auto 0;width:min(720px,100%);letter-spacing:.5px;}
+
+  /* ============ 游戏页 ============ */
   #game{position:fixed;inset:0;z-index:5;background:var(--bg);}
   canvas{display:block;position:absolute;inset:0;width:100%;height:100%;}
 
-  /* HUD 覆盖层（分数、回合、操作提示由 canvas 绘制，这里只放结束面板） */
+  /* 结束面板 */
   .overlay-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
-    width:min(460px,92vw);background:linear-gradient(160deg,rgba(24,33,58,.95),rgba(12,16,30,.97));
-    border:1px solid var(--line);border-radius:20px;padding:26px 24px;text-align:center;
-    box-shadow:0 20px 80px rgba(0,0,0,.6);display:none;gap:14px;flex-direction:column;}
-  .overlay-panel.show{display:flex;}
-  .op-title{font-size:26px;font-weight:900;letter-spacing:2px;}
-  .op-title.win{color:var(--gold);text-shadow:0 0 24px rgba(251,191,36,.6);}
-  .op-title.lose{color:var(--red);text-shadow:0 0 24px rgba(255,59,92,.5);}
-  .op-sub{color:var(--dim);font-size:13px;line-height:1.6;}
-  .op-stats{display:flex;justify-content:center;gap:26px;font-size:13px;color:var(--dim);}
-  .op-stats b{color:var(--text);font-size:17px;}
-  .op-qr{display:flex;align-items:center;gap:12px;border:1px dashed var(--line);border-radius:12px;padding:10px 14px;
-    background:rgba(34,211,238,.04);text-align:left;flex-wrap:wrap;justify-content:center;}
-  .op-qr .qr-frame{width:104px;height:104px;}
-  .op-qr .t{font-weight:700;font-size:13.5px;}
-  .op-qr .d{font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:2px;}
-  .op-qr .qr-label{font-size:12px;}
+    width:min(440px,92vw);max-height:92vh;overflow-y:auto;
+    background:linear-gradient(165deg,rgba(20,28,50,.92),rgba(8,12,24,.96));
+    border:1px solid var(--line-strong);border-radius:24px;padding:30px 26px 24px;text-align:center;
+    box-shadow:0 30px 100px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.07);
+    display:none;gap:14px;flex-direction:column;backdrop-filter:blur(10px);}
+  .overlay-panel.show{display:flex;animation:panelIn .45s cubic-bezier(.2,.9,.25,1.2) both;}
+  @keyframes panelIn{from{opacity:0;transform:translate(-50%,-46%) scale(.92);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+  .op-kicker{font-size:11px;letter-spacing:4px;color:var(--dim-deep);}
+  .op-title{font-size:32px;font-weight:900;letter-spacing:3px;}
+  .op-title.win{background:linear-gradient(180deg,#fff3c9,#fbbf24 60%,#d97706);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 22px rgba(251,191,36,.45));}
+  .op-title.lose{background:linear-gradient(180deg,#ffd9e0,#ff3b5c 70%,#be123c);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 22px rgba(255,59,92,.4));}
+  .op-sub{color:var(--dim);font-size:13px;line-height:1.75;}
+  .op-sub b{color:var(--text);}
+  .promo{display:none;align-items:center;justify-content:center;gap:12px;margin:2px 0;
+    border:1px solid rgba(251,191,36,.4);border-radius:14px;padding:12px 14px;
+    background:linear-gradient(90deg,rgba(251,191,36,.10),rgba(251,191,36,.04));
+    animation:promoIn .6s .15s cubic-bezier(.2,.9,.3,1.35) both;}
+  .promo.show{display:flex;}
+  @keyframes promoIn{from{opacity:0;transform:scale(.8);}to{opacity:1;transform:scale(1);}}
+  .promo .belt-swatch{width:44px;height:15px;border-radius:7px;flex:none;
+    box-shadow:0 0 14px currentColor, inset 0 0 5px rgba(0,0,0,.35);}
+  .promo .pt{text-align:left;font-size:12.5px;line-height:1.5;}
+  .promo .pt b{display:block;font-size:14.5px;color:var(--gold);letter-spacing:1px;}
+  .promo .pt span{color:var(--dim);}
+  .op-stats{display:flex;justify-content:center;gap:12px;}
+  .stat{min-width:86px;border:1px solid var(--line);border-radius:14px;padding:10px 8px 8px;
+    background:rgba(255,255,255,.025);}
+  .stat b{display:block;font-size:22px;font-weight:900;letter-spacing:1px;}
+  .stat span{font-size:10.5px;color:var(--dim-deep);letter-spacing:2px;}
+  .stat.me b{color:#7dedff;} .stat.ai b{color:#ff9db0;} .stat.streak b{color:var(--gold);}
+  .btn-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;}
+  .btn.sm{padding:13px 26px;font-size:14.5px;border-radius:13px;letter-spacing:2px;}
+  .btn-ghost{background:rgba(255,255,255,.04);border:1px solid var(--line-strong);color:var(--text);
+    font-weight:700;}
+  .btn-ghost:hover{background:rgba(255,255,255,.08);}
+  .op-qr{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--line);
+    padding-top:14px;}
+  @media (max-width:420px){.op-qr{grid-template-columns:1fr;}}
+  .op-qr .qr-frame{width:84px;height:84px;border-radius:10px;}
+  .op-qr .qr-card{padding:10px;border-radius:14px;gap:10px;}
+  .op-qr .qr-side .t{font-size:12px;}
+  .op-qr .qr-side .d{font-size:10.5px;margin-top:3px;}
 
-  /* 竖屏提示（游戏中建议横屏） */
+  /* 竖屏提示 */
   #rotate-tip{position:absolute;inset:0;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;
-    background:rgba(7,10,20,.9);backdrop-filter:blur(5px);text-align:center;gap:12px;padding:24px;}
+    background:rgba(5,8,16,.86);backdrop-filter:blur(6px);text-align:center;gap:14px;padding:24px;}
   #rotate-tip.show{display:flex;}
-  #rotate-tip .r-icon{font-size:46px;}
-  #rotate-tip .r-title{font-size:19px;font-weight:800;letter-spacing:1px;}
-  #rotate-tip .r-desc{color:var(--dim);font-size:13px;line-height:1.7;}
-  .btn-row.center{justify-content:center;}
+  #rotate-tip .phone{width:44px;height:70px;border:2.5px solid #9be8f5;border-radius:9px;position:relative;
+    animation:rot 2.2s ease-in-out infinite;}
+  #rotate-tip .phone::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);
+    width:14px;height:2.5px;border-radius:2px;background:#9be8f5;}
+  @keyframes rot{0%,20%{transform:rotate(0);}55%,80%{transform:rotate(90deg);}100%{transform:rotate(90deg);}}
+  #rotate-tip .r-title{font-size:19px;font-weight:900;letter-spacing:2px;}
+  #rotate-tip .r-desc{color:var(--dim);font-size:13px;line-height:1.8;}
 
   /* 移动端触控按钮 */
   #touch{position:absolute;inset:0;z-index:6;display:none;pointer-events:none;}
   #touch.show{display:block;}
-  .tk{position:absolute;border-radius:50%;border:2px solid rgba(34,211,238,.35);background:rgba(34,211,238,.08);
-    color:#cfeaff;display:flex;align-items:center;justify-content:center;font-weight:800;pointer-events:auto;
-    touch-action:none;backdrop-filter:blur(2px);}
-  .tk:active{background:rgba(34,211,238,.3);border-color:rgba(34,211,238,.8);}
-  #t-left{left:4%;bottom:18%;width:118px;height:118px;font-size:26px;}
-  #t-right{left:calc(4% + 138px);bottom:18%;width:118px;height:118px;font-size:26px;}
-  #t-kick{right:4%;bottom:26%;width:100px;height:100px;font-size:19px;border-color:rgba(255,59,92,.45);background:rgba(255,59,92,.10);color:#ffd7de;}
-  #t-block{right:calc(4% + 118px);bottom:26%;width:100px;height:100px;font-size:19px;border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.10);color:#fff3d6;}
-  #t-jump{right:calc(4% + 236px);bottom:26%;width:100px;height:100px;font-size:19px;border-color:rgba(103,232,249,.5);background:rgba(103,232,249,.10);color:#dff8ff;}
-  #t-move{left:4%;bottom:18%;width:118px;height:118px;font-size:26px;opacity:.9;}
+  .tk{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-weight:800;pointer-events:auto;touch-action:none;color:#dff3ff;
+    background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.14), rgba(20,30,55,.42) 62%);
+    border:1.5px solid rgba(140,190,255,.35);backdrop-filter:blur(3px);
+    box-shadow:0 6px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.14);
+    font-size:15px;letter-spacing:1px;flex-direction:column;gap:1px;}
+  .tk small{font-size:9px;opacity:.55;letter-spacing:2px;}
+  .tk:active{transform:scale(.94);filter:brightness(1.5);}
+  #t-left{left:3.5%;bottom:9%;width:96px;height:96px;font-size:26px;}
+  #t-right{left:calc(3.5% + 112px);bottom:9%;width:96px;height:96px;font-size:26px;}
+  #t-kick{right:3.5%;bottom:15%;width:92px;height:92px;
+    border-color:rgba(255,99,124,.55);color:#ffdbe1;
+    background:radial-gradient(circle at 32% 28%, rgba(255,120,145,.22), rgba(70,14,28,.5) 62%);}
+  #t-block{right:calc(3.5% + 106px);bottom:9%;width:78px;height:78px;
+    border-color:rgba(251,191,36,.5);color:#ffefc4;
+    background:radial-gradient(circle at 32% 28%, rgba(251,191,36,.18), rgba(64,48,10,.5) 62%);}
+  #t-jump{right:calc(3.5% + 198px);bottom:20%;width:72px;height:72px;
+    border-color:rgba(103,232,249,.5);color:#d8f7ff;
+    background:radial-gradient(circle at 32% 28%, rgba(103,232,249,.16), rgba(10,52,64,.5) 62%);}
 </style>
 </head>
 <body>
-<div class="bgfx"></div>
+<div class="bgfx"><div class="orb a"></div><div class="orb b"></div></div>
 
 <!-- ================= 引导页 ================= -->
 <div id="landing" class="screen">
-  <div class="landing-card">
-    <div class="badge-row">
-      <span class="badge">抖音校园 · WowLand</span>
-      <span class="badge">上海理工大学</span>
-      <span class="badge hot">跆拳道社 × AI</span>
+  <div class="landing">
+    <div class="top-strip">
+      <div class="club-line"><span class="dot"></span>抖音校园 · WowLand　×　上海理工大学跆拳道社</div>
+      <div class="free-tag">公益实践 · 免费参与</div>
     </div>
-    <h1 class="logo">跆拳道 · AI 对战</h1>
-    <p class="sub">操控小人，挑战 AI 跆拳道高手！<b>横踢是主力</b>（实战 60-80% 的技术），后踢打反击、旋风踢与飞踢踢头终结。按 <b>WT 竞技规则</b>计分：正拳躯干 1 分 · 踢躯干 2 分 · 旋转技（后踢/旋风踢）3 分 · 踢头 3 分 · 旋转技踢头 4 分。<b>五局三胜</b>，击倒后 8 秒读秒，完全出界判罚对方 +1 分。感受 <b>AI 的魅力</b>与 <b>跆拳道的魅力</b>，科技与热血的碰撞。</p>
+
+    <div class="hero">
+      <span class="kicker">CAMPUS ESPORTS · 跆拳道 × AI</span>
+      <h1>跆拳道 <span class="vs">·</span> AI 对战</h1>
+      <p class="tagline">操控你的选手，挑战<b>会攻防、会闪避</b>的 AI 跆拳道高手</p>
+      <div class="rules-line">
+        <span class="chip">WT 竞技规则 · <b>拳 1</b> 分</span>
+        <span class="chip">踢躯干 <b>2</b> 分</span>
+        <span class="chip">踢头 <b>3</b> 分</span>
+        <span class="chip">旋转技 <b>+1</b></span>
+        <span class="chip">击倒 <b>8</b> 秒读秒</span>
+        <span class="chip">三倒判负</span>
+        <span class="chip">出界判罚 <b>+1</b></span>
+      </div>
+    </div>
+
+    <div class="versus">
+      <div class="vs-card left">
+        <div class="who">你 · 挑战者</div>
+        <div class="role">青色护具 · 白带起步 · 一路打到黑带</div>
+        <span class="belt-dot"></span>
+      </div>
+      <div class="vs-mid"><div class="vstar">VS</div></div>
+      <div class="vs-card right">
+        <div class="who">AI · 跆拳道高手</div>
+        <div class="role">红色护具 · 会预判格挡与闪避 · 越打越强</div>
+        <span class="belt-dot"></span>
+      </div>
+    </div>
 
     <div class="perks">
-      <div class="perk"><div class="icon">🥋</div><div class="t">AI 对手</div><div class="d">会攻防、会闪避的 AI 跆拳道高手，从白带到黑带逐个挑战</div></div>
-      <div class="perk"><div class="icon">🎮</div><div class="t">易上手</div><div class="d">手机、电脑都能玩，键鼠 / 触屏双操控，30 秒学会</div></div>
-      <div class="perk"><div class="icon">🏆</div><div class="t">段位晋级</div><div class="d">击败 AI 赢下段位徽章，看看你能走到哪一带</div></div>
+      <div class="perk">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <div class="t">真·AI 对手</div>
+        <div class="d">会追击、格挡、闪避与反击。AI 有出招前摇，看准破绽打反击才是制胜之道。</div>
+      </div>
+      <div class="perk">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="16" cy="12" r="1"/><circle cx="18.5" cy="14" r="1"/></svg></div>
+        <div class="t">30 秒上手</div>
+        <div class="d">手机、电脑都能玩，键盘 / 触屏双操控。横踢是主力，连点踢出旋风踢终结比赛。</div>
+      </div>
+      <div class="perk">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M6 4h12v4a6 6 0 01-12 0V4z"/><path d="M6 6H3.5a2.5 2.5 0 005 0M18 6h2.5a2.5 2.5 0 01-5 0"/></svg></div>
+        <div class="t">段位晋级</div>
+        <div class="d">五局三胜，击败当前段位 AI 即可晋级。白带打到黑带，看看你能走到哪一带。</div>
+      </div>
     </div>
 
-    <div class="howto">
-      <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">W</span>/<span class="keycap">Space</span> 跳 · <span class="keycap">J</span> 拳 · <span class="keycap">K</span> 踢 · <span class="keycap">L</span> 挡</span>
-      <span class="k">🌀 炫技：连点 <span class="keycap">K</span>=下劈→旋风踢 · 前进+<span class="keycap">K</span>=侧踢 · 后退+<span class="keycap">K</span>=后踢 · 空中踢=飞踢 · 连续命中=连招加伤</span>
-      <span class="k">🥊 WT 计分：拳1 · 踢2 · 踢头3 · 旋转踢+1 · 击倒后 8 秒读秒，狂按 <span class="keycap">J/K</span> 起身</span>
-      <span class="k">📱 触屏：左右键移动 · 踢/挡/跳按钮，<b>连点踢=旋风踢</b> · 按住反方向+踢=后踢</span>
+    <div class="belts">
+      <span class="lab">段位阶梯</span>
+      <span class="belt"><i style="background:#e8eefc"></i>白带</span><span class="arr">▸</span>
+      <span class="belt"><i style="background:#facc15"></i>黄带</span><span class="arr">▸</span>
+      <span class="belt"><i style="background:#22c55e"></i>绿带</span><span class="arr">▸</span>
+      <span class="belt"><i style="background:#38bdf8"></i>蓝带</span><span class="arr">▸</span>
+      <span class="belt"><i style="background:#f97316"></i>红带</span><span class="arr">▸</span>
+      <span class="belt last"><i style="background:#111827;border:1px solid #4b5563"></i>黑带宗师</span>
     </div>
 
-    <div class="btn-row">
-      <button class="btn btn-primary" id="btn-start">⚔ 开始挑战 AI</button>
+    <div class="controls">
+      <div class="ctrl-box">
+        <div class="h"><span class="tag">电脑</span>键盘操控</div>
+        <div class="ctrl-row"><span class="keycap">A</span><span class="keycap">D</span> 移动 · <span class="keycap">W</span>/<span class="keycap">空格</span> 跳跃 · <span class="keycap">L</span> 格挡（按住）</div>
+        <div class="ctrl-row"><span class="keycap">J</span> 正拳 · <span class="keycap">K</span> 横踢 · 空中<span class="keycap">K</span> <b class="hl">飞踢</b></div>
+        <div class="ctrl-row">前进+<span class="keycap">K</span> <b>侧踢</b> · 后退+<span class="keycap">K</span> <b>后踢</b> · 连点<span class="keycap">K</span> <b class="hl">下劈→旋风踢</b></div>
+        <div class="ctrl-row">连续命中触发 <b class="hl">连击加伤</b> · 被击倒后狂按 <span class="keycap">J</span><span class="keycap">K</span> 起身</div>
+      </div>
+      <div class="ctrl-box">
+        <div class="h"><span class="tag">手机</span>触屏操控</div>
+        <div class="ctrl-row">左下 <b>◀ ▶</b> 移动 · 右下 <b>跳 / 踢 / 挡</b> 按钮</div>
+        <div class="ctrl-row">连点 <b>踢</b> = 下劈 → <b class="hl">旋风踢</b> · 按住反方向+踢 = <b>后踢</b></div>
+        <div class="ctrl-row">跳跃中点 <b>踢</b> = <b class="hl">飞踢</b> · 被击倒后狂按 <b>踢</b> 起身</div>
+        <div class="ctrl-row"><b>建议横屏游玩</b>，视野更宽、出招更准</div>
+      </div>
+    </div>
+
+    <div class="cta-zone">
+      <button class="btn btn-primary" id="btn-start">开始挑战 AI</button>
+      <div class="cta-note">五局三胜 · WT 得分制 · 击倒后 8 秒读秒 KO</div>
     </div>
 
     <div class="qr-zone">
-      <div class="qr-item">
-        <div class="qr-frame">
-          <img src="qr-douyin.png" alt="抖音校园 WowLand 活动群二维码（上海理工大学）">
+      <div class="qr-card">
+        <div class="qr-frame"><img src="qr-douyin.png" alt="抖音校园 WowLand 活动群二维码（上海理工大学）"></div>
+        <div class="qr-side">
+          <div class="t">抖音校园 WowLand 活动群</div>
+          <div class="d"><em>实习内推</em> · 行业前辈交流 · <em class="g">AI 课程训练营</em> · 活动优先报名</div>
         </div>
-        <div class="qr-label">📱 抖音校园 WowLand 活动群</div>
       </div>
-      <div class="qr-item">
-        <div class="qr-frame">
-          <img src="qr-tkd.png" alt="跆拳道社微信群二维码（26 上理跆社招新）">
+      <div class="qr-card">
+        <div class="qr-frame"><img src="qr-tkd.png" alt="跆拳道社微信群二维码（26 上理跆社招新）"></div>
+        <div class="qr-side">
+          <div class="t">跆拳道社微信群</div>
+          <div class="d">日常训练 · <em class="g">考级与比赛信息</em> · 一起练腿法、交朋友！</div>
         </div>
-        <div class="qr-label">🥋 跆拳道社微信群</div>
-      </div>
-      <div class="qr-side">
-        <div class="t">🤝 扫码进群，福利在这里</div>
-        <div class="d"><b>抖音校园 WowLand 活动群</b>（上海理工大学）：🔹 实习机会 · 内推通道　🔹 与行业前辈直接交流<br>🔹 AI 工具课程与训练营　🔹 校园活动优先报名<br>
-        <b>跆拳道社微信群</b>：🔹 日常训练 · 考级与比赛信息　🔹 一起练腿法、交朋友！</div>
       </div>
     </div>
 
-    <p class="foot-note">本活动为抖音校园 WowLand 公益实践项目，自愿参与，不收取任何费用 · 由上海理工大学跆拳道社 × 抖音校园联合呈现</p>
+    <p class="foot-note">本活动为抖音校园 WowLand 公益实践项目，自愿参与，不收取任何费用<br>由上海理工大学跆拳道社 × 抖音校园联合呈现</p>
   </div>
 </div>
 
@@ -199,47 +401,51 @@
   <div id="touch">
     <div class="tk" id="t-left">◀</div>
     <div class="tk" id="t-right">▶</div>
-    <div class="tk" id="t-kick">🦵 踢</div>
-    <div class="tk" id="t-block">🛡 挡</div>
-    <div class="tk" id="t-jump">⤴ 跳</div>
+    <div class="tk" id="t-kick">踢<small>KICK</small></div>
+    <div class="tk" id="t-block">挡<small>BLOCK</small></div>
+    <div class="tk" id="t-jump">跳<small>JUMP</small></div>
   </div>
 
   <!-- 竖屏提示（游戏中建议横屏，可跳过） -->
   <div id="rotate-tip">
-    <div class="r-icon">🔄</div>
+    <div class="phone"></div>
     <div class="r-title">建议横屏游玩</div>
     <div class="r-desc">跆拳道对战需要更宽的赛场视野<br>横屏后角色更大、出招更准</div>
-    <button class="btn btn-ghost" id="btn-rotate-dismiss">仍要竖屏游玩</button>
+    <button class="btn btn-ghost sm" id="btn-rotate-dismiss">仍要竖屏游玩</button>
   </div>
 
   <!-- 结束面板 -->
-  <div class="overlay-panel" id="endPanel">    <div class="op-title" id="endTitle"></div>
+  <div class="overlay-panel" id="endPanel">
+    <div class="op-kicker" id="endKicker">MATCH RESULT · 对局结算</div>
+    <div class="op-title" id="endTitle"></div>
+    <div class="promo" id="promoBox">
+      <div class="belt-swatch" id="promoSwatch"></div>
+      <div class="pt"><b id="promoName">晋级 · 蓝带</b><span id="promoDesc">更强的 AI 正在等你</span></div>
+    </div>
     <div class="op-sub" id="endSub"></div>
     <div class="op-stats">
-      <span>你 <b id="stP"></b></span>
-      <span>AI <b id="stA"></b></span>
-      <span>连胜 <b id="stW"></b></span>
+      <div class="stat me"><b id="stP">0</b><span>我方回合</span></div>
+      <div class="stat ai"><b id="stA">0</b><span>AI 回合</span></div>
+      <div class="stat streak"><b id="stW">0</b><span>总连胜</span></div>
     </div>
-    <div class="btn-row center">
-      <button class="btn btn-primary" id="btn-re">⚔ 再来一局</button>
-      <button class="btn btn-ghost" id="btn-home">🏠 返回首页</button>
+    <div class="btn-row">
+      <button class="btn btn-primary sm" id="btn-re">再来一局</button>
+      <button class="btn btn-ghost sm" id="btn-home">返回首页</button>
     </div>
     <div class="op-qr">
-      <div class="qr-item">
-        <div class="qr-frame">
-          <img src="qr-douyin.png" alt="抖音校园 WowLand 活动群二维码（上海理工大学）">
+      <div class="qr-card">
+        <div class="qr-frame"><img src="qr-douyin.png" alt="抖音校园 WowLand 活动群二维码（上海理工大学）"></div>
+        <div class="qr-side">
+          <div class="t">📱 WowLand 活动群</div>
+          <div class="d">实习内推 · 前辈交流 · AI 课程</div>
         </div>
-        <div class="qr-label small">📱 抖音 WowLand 活动群</div>
       </div>
-      <div class="qr-item">
-        <div class="qr-frame">
-          <img src="qr-tkd.png" alt="跆拳道社微信群二维码（26 上理跆社招新）">
+      <div class="qr-card">
+        <div class="qr-frame"><img src="qr-tkd.png" alt="跆拳道社微信群二维码（26 上理跆社招新）"></div>
+        <div class="qr-side">
+          <div class="t">🥋 跆拳道社微信群</div>
+          <div class="d">日常训练 · 比赛信息 · 一起变强</div>
         </div>
-        <div class="qr-label small">🥋 跆拳道社微信群</div>
-      </div>
-      <div>
-        <div class="t">📢 进群福利</div>
-        <div class="d">抖音 WowLand 活动群：实习内推 · 前辈交流 · AI 课程<br>跆拳道社微信群：日常训练 · 比赛信息 · 一起变强</div>
       </div>
     </div>
   </div>
@@ -248,8 +454,8 @@
 <script>
 "use strict";
 /* =====================================================================
-   跆拳道 · AI 对战 —— 纯前端单文件游戏
-   玩法：三局两胜 KO 制。玩家 vs AI 跆拳道高手（不同段位难度递增）
+   跆拳道 · AI 对战 —— 纯前端单文件游戏（视觉重制版）
+   玩法：五局三胜 · WT 得分制。玩家 vs AI（白→黑带难度递增）
    操控：桌面键鼠 / 移动端触屏
    音效：Web Audio 代码合成（无需素材）
    ===================================================================== */
@@ -267,11 +473,14 @@ const mixC = (a, b, k) => {   // '#rrggbb' 颜色插值（k=0→a, 1→b）
   const bl = Math.round((pa&255)*(1-k) + (pb&255)*k);
   return `rgb(${r},${g},${bl})`;
 };
+const FONT = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif';
+const fnt = (w, s) => `${w} ${s}px ${FONT}`;
 
 /* ---------- 画布 ---------- */
 const cv = $('cv'), ctx = cv.getContext('2d');
-let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0, COURT = 340;
-const SCALE = () => Math.max(.66, Math.min(W, 780) / 780);   // 画布逻辑缩放（竖屏时角色不缩太小）
+let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0, COURT = 320;
+/* 比例尺：横屏大幅放大角色（画面主体），竖屏按宽度适配 */
+const SCALE = () => W > H ? clamp(H/600, 1.0, 1.55) : clamp(W/440, .78, 1.08);
 const isTouch = () => matchMedia('(pointer: coarse)').matches;
 
 function resize(){
@@ -281,8 +490,8 @@ function resize(){
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   CX = W / 2;
-  GROUND = H - Math.max(70, H * 0.10);   // 地面高度
-  COURT = Math.min(W*.42, 350);          // WT 比赛区半径（出界判罚线为 COURT+42）
+  GROUND = H - clamp(H * 0.17, 88, 170);   // 地面高度（画面重心下移，人物更大）
+  COURT = clamp(Math.min(W*.38, H*.52), 120, 330);  // WT 比赛区半径（出界判罚线为 COURT+42；窄屏自动收窄）
   buildBg();
   placeTouch();
   if(typeof checkOrientation === 'function') checkOrientation();
@@ -290,27 +499,53 @@ function resize(){
 window.addEventListener('resize', resize);
 
 /* ---------- 音频（Web Audio 合成） ---------- */
-let AC = null;
-function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+let AC = null, noiseBuf = null;
+function audio(){
+  if(!AC){
+    try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+    if(AC){
+      // 预生成白噪声缓冲（观众声/打击铺底）
+      const len = AC.sampleRate * 1.2;
+      noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+    }
+  }
+  return AC;
+}
 function sfx(type, vol = 0.5){
   const ac = audio(); if(!ac) return;
   const t = ac.currentTime;
-  const tone = (f0, f1, dur, wave = 'square') => {
+  const tone = (f0, f1, dur, wave = 'square', v = vol, delay = 0) => {
     const o = ac.createOscillator(), g = ac.createGain();
-    o.type = wave; o.frequency.setValueAtTime(f0, t);
-    o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
-    g.gain.setValueAtTime(vol, t);
+    o.type = wave; o.frequency.setValueAtTime(f0, t + delay);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + delay + dur);
+    g.gain.setValueAtTime(v, t + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, t + delay + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t + delay); o.stop(t + delay + dur + .02);
+  };
+  const crowd = (dur, v, freq) => {
+    if(!noiseBuf) return;
+    const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = freq; bp.Q.value = .6;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + dur*.25);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    src.connect(bp); bp.connect(g); g.connect(ac.destination);
+    src.start(t); src.stop(t + dur + .05);
   };
   switch(type){
-    case 'punch': tone(130, 40, .12); break;        // 出拳 低频
-    case 'kick':  tone(90, 30, .18); break;          // 踢腿
-    case 'hit':   tone(260, 60, .16, 'sawtooth'); break;   // 命中
-    case 'guard': tone(700, 500, .06); break;       // 格挡
-    case 'ko':    tone(180, 30, .8, 'sawtooth'); break;    // KO
-    case 'win':   [523,659,784].forEach(f => tone(f, f, .16, 'sine')); break; // 胜利和弦
-    case 'lose':  [392,330,262].forEach(f => tone(f, f, .2, 'sine')); break;
+    case 'punch': tone(130, 40, .12); break;               // 出拳 低频
+    case 'kick':  tone(90, 30, .18); break;                // 踢腿
+    case 'hit':   tone(260, 60, .16, 'sawtooth'); crowd(.25, .06, 900); break;   // 命中 + 观众轻呼
+    case 'guard': tone(700, 500, .06); break;              // 格挡
+    case 'ko':    tone(180, 30, .8, 'sawtooth'); crowd(1.6, .22, 700); break;    // KO + 观众沸腾
+    case 'bell':  tone(880, 880, .5, 'sine', .3); tone(1174, 1174, .6, 'sine', .22, .02); break; // 开赛铃
+    case 'tick':  tone(1100, 1100, .05, 'sine', .25); break;   // 读秒报数
+    case 'win':   [523,659,784].forEach((f,i) => tone(f, f, .18, 'sine', .32, i*.09)); crowd(1.4, .18, 800); break;
+    case 'lose':  [392,330,262].forEach((f,i) => tone(f, f, .22, 'sine', .3, i*.12)); break;
   }
 }
 
@@ -377,7 +612,7 @@ function placeTouch(){
   };
   b('t-left',  v => touch.left = v);
   b('t-right', v => touch.right = v);
-  b('t-kick',  v => { touch.kick = v; if(v){ if(state.count !== 'p') kickEdge = true; } });
+  b('t-kick',  v => { touch.kick = v; if(v){ if(state.count==='p'){ riseTapP = Math.max(riseTapP, .3); } else kickEdge = true; } });
   b('t-block', v => holdBlock(v));
   b('t-jump',  v => { touch.jump = v; if(v) setJump('p'); });
 }
@@ -397,22 +632,46 @@ $('btn-rotate-dismiss').addEventListener('click', () => { portraitDismissed = tr
 const STATE = { menu:'menu', fight:'fight', over:'over' };
 const state = { mode:STATE.menu, overTimer:0, winStreak:0, roundTime:60, count:null, countNum:8, countT:0, intro:0 };
 
+/* WT 级位体系（国技院）：白→黄→绿→蓝→红→黑，六个主色段位，难度递增 */
 const RANKS = [
-  { name:'白带', color:'#e8eefc', ai:0.48, speed:1.05, hp:90,  tag:'新手 AI' },
-  { name:'黄带', color:'#facc15', ai:0.64, speed:1.2, hp:115, tag:'入门 AI' },
-  { name:'蓝带', color:'#38bdf8', ai:0.80, speed:1.35, hp:140, tag:'进阶 AI' },
-  { name:'红带', color:'#f97316', ai:0.95, speed:1.55, hp:165, tag:'高手 AI' },
-  { name:'黑带', color:'#1f2937', ai:1.0, speed:1.75, hp:195, tag:'宗师 AI' },
+  { name:'白带', color:'#e8eefc', ai:0.46, speed:1.0,  hp:90,  tag:'新手 AI' },
+  { name:'黄带', color:'#facc15', ai:0.58, speed:1.12, hp:110, tag:'入门 AI' },
+  { name:'绿带', color:'#22c55e', ai:0.70, speed:1.24, hp:130, tag:'进阶 AI' },
+  { name:'蓝带', color:'#38bdf8', ai:0.82, speed:1.38, hp:150, tag:'高手 AI' },
+  { name:'红带', color:'#f97316', ai:0.93, speed:1.55, hp:172, tag:'精英 AI' },
+  { name:'黑带', color:'#1f2937', ai:1.0,  speed:1.75, hp:195, tag:'宗师 AI' },
 ];
 let rankIdx = 0;
-let roundWins = 0, aiWins = 0;   // 大比分（三局两胜）
+let roundWins = 0, aiWins = 0;   // 大比分（五局三胜）
 let scoreP = 0, scoreA = 0;      // 回合内得分（WT 竞技规则）
+
+/* ---------- 特效池（世界坐标） ---------- */
+let sparks = [];      // 命中星芒 {x,y,dur,life,color,big,ang}
+let rings = [];       // 冲击波环 {x,y,dur,life,r0,r1,color,lw}
+let floats = [];      // 飘分 {x,y,vy,dur,life,text,color,size}
+let embers = [];      // 赛场浮尘
+let flashA = 0;       // 全屏白闪（KO）
+let slowT = 0;        // KO 慢动作计时
+function hitSpark(x, y, color, big){
+  sparks.push({ x, y, dur: big?.34:.22, life: big?.34:.22, color, big: !!big, ang: rand(0, Math.PI) });
+  if(big) rings.push({ x, y, dur:.4, life:.4, r0:10, r1:120, color, lw:3.5 });
+}
+function addFloat(x, y, text, color, size){
+  floats.push({ x: clamp(x, 50, W - 50), y, vy:-56, dur:1.0, life:1.0, text, color, size:size||22 });
+}
+function initEmbers(){
+  embers = [];
+  const n = Math.round(clamp(W/46, 16, 34));
+  for(let i=0;i<n;i++){
+    embers.push({ x:rand(0,W), y:rand(0,H), vx:rand(-6,6), vy:rand(-14,-5), ph:rand(0,7), r:rand(.8,2.1), a:rand(.08,.3) });
+  }
+}
 
 /* ---------- 角色类 ---------- */
 class Fighter {
   constructor(x, side, opts){
     this.x = x; this.side = side;             // 'p' 玩家 / 'a' AI
-    this.w = 46; this.h = 140;
+    this.w = 52; this.h = 150;
     this.face = side==='p' ? 1 : -1;          // 朝向
     this.vx = 0;
     this.hp = 100; this.maxHp = 100;
@@ -422,6 +681,7 @@ class Fighter {
     this.state = 'idle'; this.stT = 0;        // 当前动作
     this.freeze = 0;                          // 受击硬直
     this.kd = 0; this.kdT = 0;                // 倒地
+    this.kdCount = 0;                         // 本回合被击倒次数（三倒判负）
     this.flash = 0;                           // 受击闪白
     this.cool = 0;                            // 出招冷却
     this.particle = [];
@@ -439,10 +699,10 @@ class Fighter {
     this.stepBack = 0;                        // 旋风踢：撤步转身蓄力（背对对手）
     this.windup = 0;                          // 旋风踢：蓄力计时
     this.phase = 0;                           // 旋风踢：0蓄力 1转体 2踢出 3收势 4结束
-    this.lastPt = 0; this.lastPtT = 0;        // 最近命中得分（飘分显示）
-    this.kickTrail = [];                      // 踢击金色轨迹（脚部拖尾）
+    this.lastPt = 0; this.lastPtT = 0;        // 最近命中得分
+    this.kickTrail = [];                      // 踢击轨迹（脚部拖尾）
   }
-  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.kdCount=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; }
   get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'||this.cast!==''; }
   get grounded(){ return this.kd<=0 && !this.airborne; }
   canAct(){ return this.kd<=0 && this.freeze<=0 && this.state==='idle' && this.cast===''; }
@@ -552,7 +812,6 @@ function startSpinx(f){
   f.cool = 1.1;
   hitLocks.delete(f);   // 旋风踢是独立新动作，允许重新判定命中
   sfx('kick', .4);
-  // 蓄力阶段结束 → 进入旋转阶段（在 update 里推进）
 }
 function tryBlock(f, dur=0.5){
   if(!f.canAct()) return;
@@ -568,15 +827,13 @@ function resolveHit(f, t){
   const facing = Math.sign(t.x - f.x) === f.face;
   if(!inRange || !facing) return;
 
-  // 连击：窗口内连续命中 → 伤害递增（3 击后触发浮空连打）
+  // 连击：窗口内连续命中 → 伤害递增
   let combo = f.combo;
   if(f.comboT <= 0) combo = 0;          // 窗口过期重置
   combo++;
   f.combo = combo; f.comboT = 1.0;
 
   // ---- WT 竞技得分规则（按技术类型） ----
-  // 正拳躯干 1 分；踢（横踢/侧踢）躯干 2 分；旋转技（后踢/旋风踢）躯干 3 分；
-  // 踢头 3 分（下劈/飞踢/旋风踢）；旋转技踢头 4 分。
   const isKick = f.state==='kick';
   const isSpinning = f.cast==='spinx' || f.cast==='back';
   const toHead = isKick && ((f.flyKick && f.airborne) || f.cast==='spinx' || f.cast==='axe');
@@ -587,46 +844,68 @@ function resolveHit(f, t){
   } else {
     pt = 1;                            // 正拳（仅躯干）
   }
-  f.lastPt = pt; f.lastPtT = .9;       // 飘分显示
 
   const base = f.state==='kick' ? f.attack*1.6 : f.attack;
   let dmg = base * (1 + Math.min(combo-1, 3) * 0.14);   // 最多叠 3 段
   if(f.cast==='spinx') dmg = base * 1.9;                 // 旋风踢高伤
   if(f.flyKick) dmg = base * 1.35;                       // 飞踢加成
 
+  const hitX = t.x - t.face*10, hitY = GROUND - t.h*.62;
+
   if(t.state === 'block' && t.grounded){
     // 格挡成功（连击重置，不算分）
-    f.lastPt = 0; f.lastPtT = 0;
     f.combo = 0; f.comboT = 0;
     sfx('guard', .3);
+    hitSpark(hitX, hitY, '#fbbf24', false);
+    addFloat(hitX, hitY - 26, '格挡', '#fde68a', 15);
     burst(t, 8, '#fbbf24', 4);
     t.freeze = Math.max(t.freeze, .18);
     return;
   }
   // 命中
-  // 得分入账（三局两胜：按 WT 规则累计分数）
   if(f.side==='p') scoreP += pt; else scoreA += pt;
   t.freeze = .32;
   t.flash = .2;
   t.hp -= dmg;
   sfx('hit', .45);
-  shake(f.cast==='spinx' ? 11 : (f.flyKick ? 7 : 4.5), f.cast==='spinx' ? .3 : .16);
-  hitStopT = f.cast==='spinx' ? .09 : (f.flyKick ? .07 : .05);   // 命中定格（打击感）
-  burst(t, f.cast==='spinx' ? 26 : 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', f.cast==='spinx' ? 8 : 6);
+  const heavy = f.cast==='spinx' || pt >= 3;
+  shake(heavy ? 11 : 4.5, heavy ? .3 : .16);
+  hitStopT = heavy ? .09 : .05;   // 命中定格（打击感）
+  hitSpark(hitX, hitY, f.side==='p' ? '#9beaff' : '#ff9db0', heavy);
+  addFloat(hitX + rand(-8,8), hitY - 30, `+${pt}`, f.side==='p' ? '#fde047' : '#fda4af', heavy ? 26 : 21);
+  burst(t, heavy ? 26 : 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', heavy ? 8 : 6);
   // 击退
   t.vx = f.face * (f.cast==='spinx' ? 9 : 6);
-  // 旋风踢会把对手击飞一点
   if(f.cast==='spinx') t.vx += f.face * 2;
   if(t.hp <= 0) knockdown(t, f);
 }
 
 function knockdown(t, f){
+  // 三倒判负（职业踢拳规则）：同一回合第 3 次被击倒，直接输掉该回合
+  t.kdCount = (t.kdCount || 0) + 1;
+  if(t.kdCount >= 3){
+    t.hp = 0;
+    t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
+    burst(t, 30, '#ff3b5c', 8);
+    sfx('ko', .6);
+    shake(14, .55);
+    flashA = .9; slowT = 1.0;
+    rings.push({ x:t.x, y:GROUND - t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
+    announce('三倒判负', 1.8, '#ff3b5c');
+    t.roundDone = true;
+    if(t.side==='p'){ aiWins++; sfx('lose', .5); } else { roundWins++; sfx('win', .5); }
+    endRound();
+    return;
+  }
   t.hp = 0;
   t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
   t.rise = 0; t.riseSpeed = 0;
   burst(t, 30, '#ff3b5c', 8);
   sfx('ko', .6);
   shake(14, .55);
+  flashA = .9;            // 全屏白闪
+  slowT = 1.0;            // KO 慢动作
+  rings.push({ x:t.x, y:GROUND - t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
   announce('K.O.!', 1.8, '#ff3b5c');
   t.vx = f.face * 9;
   // 进入 8 秒读秒（WT 规则：被击倒后裁判读秒，数到 8 未起身即 KO 判负）
@@ -653,7 +932,7 @@ function aiThink(dt){
   const wantFace = p.x > f.x ? 1 : -1;
   if(f.grounded && f.state==='idle' && f.cast==='') f.face = wantFace;
 
-  // 决策冷却：难度越高反应越快（高手决策间隔约 0.15~0.35s）
+  // 决策冷却：难度越高反应越快
   f.thinkT = (f.thinkT||0) - dt;
   if(f.thinkT <= 0 && f.canAct()){
     f.thinkT = rand(.22, .55) / (0.45 + skill*0.65);
@@ -665,43 +944,42 @@ function aiThink(dt){
 
     if(dist > 200){        // 远：快速逼近
       f.targetVx = wantFace * rand(250, 340) * rank.speed;
-    } else if(dist < 110){ // 近身：踢法压制为主（实战 80% 技术是踢）
+    } else if(dist < 110){ // 近身：踢法压制为主
       if(counter && skill > .4 && Math.random() < .6 + skill*.35){
-        if(Math.random() < .88) tryKick(f); else tryPunch(f);   // 反击以踢为主
+        if(Math.random() < .88) tryKick(f); else tryPunch(f);
       }
       else if(roll < .15 && skill > .55){
-        // 撤步反击：后踢是经典反击技（旋转 3 分）
         if(Math.random() < .5) startBackKick(f);
         else f.targetVx = -wantFace * 290;
       }
-      else if(roll < .52){ if(Math.random() < .28) startAxe(f); else tryKick(f); }   // 近身混入下劈
+      else if(roll < .52){ if(Math.random() < .28) startAxe(f); else tryKick(f); }
       else if(roll < aggr){ if(Math.random() < .9) tryKick(f); else tryPunch(f); }
-      else { f.targetVx = -wantFace * rand(40,100); }                // 微调距离保持压制
+      else { f.targetVx = -wantFace * rand(40,100); }
     } else {               // 中距：突进与踢击试探
       if(roll < .28 && skill > .45){ tryKick(f); }
       else if(roll < aggr*.85){ if(Math.random() < .88) tryKick(f); else tryPunch(f); }
-      else if(roll < .84){ if(Math.random() < .24) startSide(f); else f.targetVx = wantFace * rand(290, 370) * rank.speed; }  // 突进踹/逼近
+      else if(roll < .84){ if(Math.random() < .24) startSide(f); else f.targetVx = wantFace * rand(290, 370) * rank.speed; }
       else { f.targetVx = -wantFace * rand(60,140); }
     }
-    // 格挡反应：玩家出招时（门槛降低、概率提高）
+    // 格挡反应：玩家出招时
     if((p.state==='attack'||p.state==='kick') && dist < 150 && Math.random() < (skill-.25)*1.0){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
       setTimeout(() => { if(f.state==='block') f.state='idle'; }, 350);
     }
-    // 特技：旋风踢 / 飞踢（使用频率提高）
+    // 特技：旋风踢 / 飞踢
     if(f.state==='idle' && f.cast==='' && dist < 175 && dist > 40){
       const sroll = Math.random();
       if(sroll < .3 && skill > .65){
-        startSpinx(f);                                  // 高段位旋风踢
+        startSpinx(f);
         f.targetVx = wantFace * 200;
       } else if(sroll < .45 && skill > .45){
-        startFlyingKick(f);                             // 飞踢
+        startFlyingKick(f);
         f.jumpH = wantFace * 400;
       }
     }
   }
 
-  // 移动平滑：向目标速度连续趋近（避免速度跳变的走停抽搐感）；出招动作期间由动作接管移动
+  // 移动平滑：向目标速度连续趋近
   if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt*10));
 }
 
@@ -730,6 +1008,20 @@ function update(dt, t){
   // 特效计时衰减
   shakeT = Math.max(0, shakeT - dt);
   if(bigMsg){ bigMsg.t -= dt; if(bigMsg.t <= 0) bigMsg = null; }
+  roundMsgT = Math.max(0, roundMsgT - dt);
+  flashA = Math.max(0, flashA - dt*1.8);
+  // 世界特效推进
+  for(let i=sparks.length-1;i>=0;i--){ sparks[i].life -= dt; if(sparks[i].life<=0) sparks.splice(i,1); }
+  for(let i=rings.length-1;i>=0;i--){ rings[i].life -= dt; if(rings[i].life<=0) rings.splice(i,1); }
+  for(let i=floats.length-1;i>=0;i--){
+    const ft = floats[i]; ft.life -= dt; ft.y += ft.vy*dt; ft.vy *= (1 - dt*1.6);
+    if(ft.life<=0) floats.splice(i,1);
+  }
+  // 赛场浮尘
+  for(const em of embers){
+    em.x += em.vx*dt; em.y += em.vy*dt; em.ph += dt;
+    if(em.y < -8 || em.x < -8 || em.x > W+8){ em.x = rand(0,W); em.y = H + 8; }
+  }
 
   // 开局倒计时：双方冻结（输入/AI/命中暂停，回合计时不走）
   if(state.intro > 0){
@@ -743,40 +1035,38 @@ function update(dt, t){
   // 通用物理（倒地角色只计时不行动）
   for(const g of [p, f]){
     if(g.kd>0){
-      // WT：击倒后进入 8 秒读秒，读秒内可起身（rise 爬升到 1 即站起）
       g.kdT += dt;
       // 读秒期间对手自动后撤到角落，不攻击
       if(state.count && state.countT > 1){
-        const vic = (state.count==='p') ? p : f;
         const atk = (state.count==='p') ? f : p;
         atk.vx = -atk.face * 60;
         atk.stepT = 0;
       }
       if(g.rise < 1){
         // 读秒计时（WT：裁判读秒 8 秒，8 秒内站起即继续，站不起来即 KO）
-        // 自动缓慢爬升 + 读秒期间按 J/K/触屏攻击键加速起身
         g.rise += dt * (1/10);                   // 纯自动 10 秒才能起身 → 不按键会被 KO
         if(g.side==='p' && (riseTapP > 0)){ g.rise += riseTapP; riseTapP = 0; }
-        if(g.side==='a') g.rise += dt * R().ai * 0.038;  // AI 起身速度随段位：低段位可能读秒不及被判 KO，高段位读秒内站起
+        if(g.side==='a') g.rise += dt * R().ai * 0.038;  // AI 起身速度随段位
         g.rise = Math.min(1, g.rise);
         // 读秒报数
         const newNum = Math.ceil(8 - g.kdT);
-        if(newNum < state.countNum && newNum >= 1){ state.countNum = newNum; sfx('ko', .35); }
+        if(newNum < state.countNum && newNum >= 1){ state.countNum = newNum; sfx('tick', .3); }
         if(g.rise >= 1){
-          // 成功起身（读秒内站起）
           g.kd = 0; g.kdT = 0; g.state='idle'; g.freeze=.5; g.rise=0; g.riseSpeed=0;
           g.airborne=false; g.jumpV=0; g.jumpH=0;
+          // 读秒起身：恢复 30% 体能继续比赛（否则空血条打到底，一碰就再倒）
+          g.hp = Math.max(g.hp, Math.round(g.maxHp * .3));
+          g.hpDisp = g.hp;
           if(state.count === g.side) state.count = null;   // 读秒结束
         } else if(g.kdT >= 8){
-          // 数到 8 未起身 → KO 判负
           g.kd = 0; g.kdT = 0; g.state='kd'; g.rise = 1;
           announce('KO 判负', 1.6, '#ff3b5c');
           if(state.count === g.side) state.count = null;
         }
       }
-      // 若已判 KO（rise>=1 且 kd 已清零），正常退出
       if(g.kd <= 0) continue;
     }
+
     // 跳跃物理
     if(g.airborne){
       g.y = (g.y||0) + g.jumpV*dt;
@@ -785,7 +1075,6 @@ function update(dt, t){
       g.jumpH = lerp(g.jumpH, 0, dt*2);
       if(g.y <= 0){
         g.y = 0; g.airborne = false; g.jumpV = 0; g.jumpH = 0;
-        // 落地
         sfx('punch', .12);
         if(g.state==='kick' && g.flyKick){ g.flyKick = false; g.state='idle'; }
         if(g.cast==='spinx'){ g.cast=''; g.castT=0; }
@@ -802,12 +1091,10 @@ function update(dt, t){
     // 血条损伤延迟（视觉缓动）
     g.hpDisp = (g.hpDisp === undefined) ? g.hp : lerp(g.hpDisp, g.hp, Math.min(1, dt*2.5));
     // ——失控保险丝：任何路径卡死的动作状态强制恢复——
-    // cast 滞留（>2s）：旋风踢分阶段/下劈/侧踢的后备恢复（不依赖 setTimeout）
     if(g.cast){
       g.castT = (g.castT||0) + dt;
       if(g.castT > 2){ g.cast=''; g.castT=0; g.phase=0; g.cyc=0; g.spinP=0; g.flyKick=false; if(g.state==='kick') g.state='idle'; }
     } else if(g.castT){ g.castT = 0; }
-    // 单动作滞留：kick（含全部踢法，旋风踢全流程约 1.4s）/ attack 超时强制收势
     if(g.state==='kick' && g.stT > 2.0){ g.state='idle'; g.cast=''; g.flyKick=false; g.phase=0; hitLocks.delete(g); }
     if(g.state==='attack' && g.stT > 0.6){ g.state='idle'; }
     // 踢击轨迹衰减
@@ -817,7 +1104,7 @@ function update(dt, t){
     // 落地尘环：下劈收腿砸地（一次性）
     if(g.cast==='axe' && g.stT > .38 && !g._dust){ g._dust = true; dustRing(g); }
     if(g.cast!=='axe' && g._dust) g._dust = false;
-    // 步态/呼吸幅度缓动：停止时腿摆平滑收势（相位不跳变），AI 行走同样摆腿
+    // 步态/呼吸幅度缓动
     const moving = Math.abs(g.vx) > 40 && g.grounded && g.kd<=0;
     if(moving){
       g.stepT += dt;
@@ -834,13 +1121,11 @@ function update(dt, t){
     if(g.cast==='spinx'){
       if(g.phase === undefined) g.phase = 0;
       if(g.phase === 0){
-        // 蓄力：撤步转身，背对对手（cyc 0→0.5 = 转 180°）
         g.windup += dt;
         g.cyc = g.windup / .22 * .5;
         g.vx = lerp(g.vx, -g.face * 120, dt*6);   // 向后撤步
         if(g.windup > .22){ g.phase = 1; }
       } else if(g.phase === 1){
-        // 转体 360°：cyc 0.5→1（约 0.4s 转完），后腿抬起
         g.cyc += dt * (0.5 / .4);
         g.spinP += dt * (360 / .4);                // 记录转体角度（得分判定用）
         g.vx = g.face * 40;
@@ -849,15 +1134,11 @@ function update(dt, t){
         // 后腿横扫踢出（前旋踢）——命中窗口
         g.stT += dt;
         g.vx = g.face * 300;                       // 前冲踢出
-        // 命中判定由外部 hitting 逻辑触发（cast==='spinx' && phase===2）
-    // 旋风踢收势落地尘环（phase 2→3 转换点，一次性）
-    if(g.stT > .22){ g.phase = 3; dustRing(g); }
+        if(g.stT > .22){ g.phase = 3; dustRing(g); }
       } else if(g.phase === 3){
-        // 收势落地
         g.vx = lerp(g.vx, 0, dt*4);
         g.phase = 4;
       } else {
-        // 完全结束：cyc 1→0（回到正常站立姿态）
         g.cyc = lerp(g.cyc, 0, dt*6);
         if(Math.abs(g.cyc) < .06){ g.cast=''; g.castT=0; g.phase=0; g.spinP=0; g.state='idle'; }
       }
@@ -870,22 +1151,13 @@ function update(dt, t){
       pt.life -= dt; pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.vy += 15*dt;
       if(pt.life<=0) g.particle.splice(i,1);
     }
-    // 命中飘分
-    if(g.lastPtT !== undefined){
-      g.lastPtT -= dt;
-      if(g.lastPtT > 0 && g.pops.length < 4){
-        // 飘分由 drawHUD 读取显示
-      } else if(g.lastPtT <= 0){ g.lastPtT = 0; }
-    }
   }
 
   // KO 读秒流程（在通用物理后统一处理）
   if(state.mode===STATE.fight && state.count){
     state.countT += dt;
     const vic = (state.count==='p') ? p : f;
-    const atk = (state.count==='p') ? f : p;
     if(vic.rise >= 1 && vic.kd <= 0){
-      // 已起身或已 KO，读秒结束
       state.count = null;
     }
   }
@@ -898,21 +1170,19 @@ function update(dt, t){
 
   // 玩家输入（仅可行动时；开局倒计时期间冻结）
   if(p.canAct() && !introHold){
-    // 持续格挡（按住 L / 触屏挡）
     if(p.holdBlock){
       if(p.state==='idle') p.state='block';
       p.cool = Math.max(p.cool, .25);
     }
     const mv = isDown('right') - isDown('left');
     if(mv !== 0){ p.vx = mv * 230; }
-    // 始终面向对手（格斗惯例：移动只分前进步/后退步，不随移动方向翻面——消除左右移动时的翻面晃动）
+    // 始终面向对手（格斗惯例：移动只分前进步/后退步，不随移动方向翻面）
     p.face = ai.x > p.x ? 1 : -1;
     if(kickEdge){ kickEdge = false; tryKick(player); }
-    // 跳跃
     if(jumpBuf.p > 0){
       jumpBuf.p -= dt;
       if(!p.airborne){ p.airborne = true; p.y = 0; p.jumpV = 520; }
-    } else if(!isDown('jump') && p.airborne && p.state==='idle'){ /* 空中可动 */ }
+    }
   } else {
     jumpBuf.p = 0;
   }
@@ -924,11 +1194,9 @@ function update(dt, t){
   for(const c of checks){
     if(state.count || introHold) break;
     const g = c.f;
-    // 旋风踢只在"踢出"阶段（phase 2）判定命中
     const spinxHit = g.cast==='spinx' && g.phase === 2;
     const hitting = spinxHit || g.state==='attack' || g.state==='kick';
     if(hitting && !hitLocks.has(g)){
-      // 出招前摇后判定：横踢在弧线扫击瞬间、下劈在劈过头部的瞬间、侧踢在踹出瞬间、后踢蹬出、飞踢空中前冲后
       const delay = g.cast==='spinx' ? .04 : (g.cast==='back' ? .14 : (g.cast==='axe' ? .3 : (g.cast==='side' ? .2 : (g.state==='kick' ? (g.flyKick ? .18 : .24) : .05))));
       if(g.stT > delay){
         resolveHit(g, c.t);
@@ -939,25 +1207,24 @@ function update(dt, t){
   }
   for(const g of [p,f]) g.stT += dt;
 
-  // WT 场地规则：8m 比赛区，完全出界判 gam-jeom（警告判罚：对方 +1 分，拉回场内）
+  // WT 场地规则：出界判罚（gam-jeom：对方 +1 分，拉回场内）；出界余量随场地宽度收缩，窄屏角色不出屏
+  const obGrace = clamp(COURT * .18, 18, 42);
   if(state.mode===STATE.fight && !state.count){
     state.gamT = Math.max(0, (state.gamT||0) - dt);
     for(const g of [p,f]){
       if(g.kd>0) continue;
       const over = Math.abs(g.x - CX) - COURT;
-      if(over > 42 && state.gamT <= 0){
-        // 完全出界 → 判罚：对方 +1 分，角色被平滑弹回场内（不瞬移）
+      if(over > obGrace && state.gamT <= 0){
         if(g.side==='p') scoreA += 1; else scoreP += 1;
-        g.lastPt = -1; g.lastPtT = 1.2;          // 负数 = 出界判罚（飘分显示"出界"）
+        addFloat(g.x, GROUND - g.h - 30, '出界判罚', '#ff8fa3', 16);
+        addFloat(g.x, GROUND - g.h - 4, '对方 +1', '#ffb3c0', 14);
         g.vx = -Math.sign(g.x - CX) * 430;       // 朝场内弹回（速度自然衰减滑回）
         state.gamT = .6;                          // 判罚防抖（弹回期间不再判）
         sfx('guard', .5);
       }
-      // 硬限制（防跑出屏幕）
-      g.x = clamp(g.x, CX - COURT - 90, CX + COURT + 90);
+      g.x = clamp(g.x, CX - COURT - obGrace - 20, CX + COURT + obGrace + 20);
     }
   } else {
-    // 非战斗状态：宽松边界
     const L = CX - W*.44, Rg = CX + W*.44;
     p.x = clamp(p.x, L, Rg); f.x = clamp(f.x, L, Rg);
   }
@@ -966,15 +1233,14 @@ function update(dt, t){
   if(Math.abs(f.x - p.x) < gap){
     if(p.x < f.x){ p.x = f.x - gap; } else { p.x = f.x + gap; }
   }
-  p.x = clamp(p.x, CX - COURT - 42, CX + COURT + 42);
-  f.x = clamp(f.x, CX - COURT - 42, CX + COURT + 42);
+  p.x = clamp(p.x, CX - COURT - obGrace, CX + COURT + obGrace);
+  f.x = clamp(f.x, CX - COURT - obGrace, CX + COURT + obGrace);
 
   // 回合计时（WT：每回合限时，时间到按得分判胜负；开局倒计时期间不走表）
   if(state.mode===STATE.fight && !state.count && !f.roundDone && !p.roundDone && !introHold){
     state.roundTime -= dt;
     if(state.roundTime <= 0){
       state.roundTime = 0;
-      // 时间到：得分高者胜；平局 AI 胜（WT 判优势方）
       if(scoreP > scoreA){ p.roundDone = true; roundWins++; sfx('win'); }
       else { f.roundDone = true; aiWins++; sfx('lose'); }
       announce('时间到', 1.3, '#fbbf24');
@@ -986,20 +1252,23 @@ function update(dt, t){
   if(state.mode===STATE.fight && !introHold) aiThink(dt);
 }
 
-/* ---------- 回合流程（WT 三局两胜） ---------- */
+/* ---------- 回合流程（WT 五局三胜） ---------- */
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
 function startRound(){
   const hp = R().hp;
   player.reset(hp); ai.reset(hp);
   player.hpDisp = hp; ai.hpDisp = hp;
-  player.x = CX - 150; ai.x = CX + 150;
+  const off = clamp(COURT * .5, 80, 150);   // 开局站位随场地宽度收缩（窄屏不出界）
+  player.x = CX - off; ai.x = CX + off;
   player.face = 1; ai.face = -1;
   player.roundDone = false; ai.roundDone = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
-  state.intro = 3.2;                    // 开局 3-2-1 倒计时（双方冻结）
+  state.intro = 3.2;                    // 开局倒计时（双方冻结）
   state.roundTime = 60;                 // WT 单回合 2 分钟，游戏内 60 秒
   hitLocks.clear();
+  sparks = []; rings = []; floats = []; flashA = 0; slowT = 0;
+  sfx('bell', .35);
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;
   state.mode = STATE.fight;
 }
@@ -1016,11 +1285,37 @@ function afterRound(){
 function gameOver(win){
   state.mode = STATE.over; state.overTimer = 0;
   const panel = $('endPanel');
-  $('endTitle').textContent = win ? '🎉 你赢了！' : '💀 被 AI 击败';
+  const canPromote = win && roundWins >= 3 && rankIdx < RANKS.length-1;
+  const isFinal = win && roundWins >= 3 && rankIdx >= RANKS.length-1;
+  $('endKicker').textContent = 'MATCH RESULT · 对局结算';
+  $('endTitle').textContent = isFinal ? '黑带宗师！' : (win ? '你赢了！' : '被 AI 击败');
   $('endTitle').className = 'op-title ' + (win ? 'win' : 'lose');
-  $('endSub').textContent = win
-    ? `你击败了 ${R().name} AI，五局三胜夺冠！试试更高段位，用后踢、旋风踢、飞踢打爆对手吧。`
-    : `${R().name} AI 太强了，再练练出招时机，小心别被 KO！`;
+  $('endSub').textContent = isFinal
+    ? '你击败了全部段位的 AI，加冕黑带宗师！到跆拳道社练真功夫吧。'
+    : win
+      ? `你击败了 ${R().name} AI。后踢与旋风踢是反击利器，踢头一次 3 分。`
+      : `${R().name} AI 太强了，看准它的出招前摇再反击，多用地踢和格挡！`;
+  // 段位晋级徽章
+  const promo = $('promoBox');
+  if(canPromote){
+    const nxt = RANKS[rankIdx+1];
+    promo.classList.add('show');
+    $('promoSwatch').style.background = nxt.color;
+    $('promoSwatch').style.color = nxt.color === '#1f2937' ? '#4b5563' : nxt.color;
+    $('promoName').textContent = `晋级 · ${nxt.name}`;
+    $('promoDesc').textContent = `下一个对手：${nxt.name} AI · ${nxt.tag}`;
+    $('btn-re').textContent = `晋级挑战 · ${nxt.name}`;
+  } else if(isFinal){
+    promo.classList.add('show');
+    $('promoSwatch').style.background = 'linear-gradient(90deg,#e8eefc,#facc15,#38bdf8,#f97316,#111827)';
+    $('promoSwatch').style.color = '#fbbf24';
+    $('promoName').textContent = '段位制霸';
+    $('promoDesc').textContent = '白带 → 黑带全部通关！';
+    $('btn-re').textContent = '再战一局';
+  } else {
+    promo.classList.remove('show');
+    $('btn-re').textContent = win ? '再战一局' : '再试一次';
+  }
   $('stP').textContent = roundWins; $('stA').textContent = aiWins;
   $('stW').textContent = state.winStreak;
   panel.classList.add('show');
@@ -1030,18 +1325,21 @@ function nextRank(){
   if(roundWins>=3){   // 胜利：晋级下一段位（五局三胜）
     if(rankIdx < RANKS.length-1){
       rankIdx++;
+      state.winStreak++;
     } else {
       gameOver(true);   // 已通关全部段位
       return;
     }
+  } else {
+    state.winStreak = 0;
   }
   // 失败（或通关后再玩）：留在当前段位重赛
   roundWins = 0; aiWins = 0; roundNum = 1;
   startRound();
 }
 
-/* ---------- 绘制 ---------- */
-/* 背景静态层缓存：氛围/场地全部静态，只绘一次（离屏），每帧 drawImage——大幅降负载防掉帧抖动 */
+/* ---------- 绘制 · 赛场 ---------- */
+/* 背景静态层缓存：观众席/LED/地面全部静态，只绘一次（离屏），每帧 drawImage */
 let bgCache = null;
 function buildBg(){
   bgCache = document.createElement('canvas');
@@ -1049,148 +1347,269 @@ function buildBg(){
   bgCache.height = Math.max(1, cv.height);
   const c = bgCache.getContext('2d');
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
-  drawGroundInto(c);
-}
-function drawGroundInto(c){
-  // 整屏清底（含 GROUND 以上区域）
-  c.fillStyle = '#0a0f1e';
+  const s = SCALE();
+
+  // 整屏清底：大厅纵深渐变
+  const hall = c.createLinearGradient(0, 0, 0, H);
+  hall.addColorStop(0, '#04060b');
+  hall.addColorStop(.52, '#0a101f');
+  hall.addColorStop(.8, '#101a30');
+  hall.addColorStop(1, '#0a0f1c');
+  c.fillStyle = hall;
   c.fillRect(0, 0, W, H);
-  // —— 赛场氛围 ——
-  const s3 = SCALE();
-  // 顶部双锥光
+
+  // 远端主光环（场馆中央高亮）
+  const glow = c.createRadialGradient(CX, GROUND - 40, 20, CX, GROUND - 40, W*.52);
+  glow.addColorStop(0, 'rgba(96,140,220,.14)');
+  glow.addColorStop(.5, 'rgba(70,110,190,.05)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = glow;
+  c.fillRect(0, 0, W, GROUND + 60);
+
+  // ---- LED 横幅 ----
+  const ledY = GROUND - 252*s, ledH = 34*s;
+  const ledGrad = c.createLinearGradient(0, ledY, 0, ledY + ledH);
+  ledGrad.addColorStop(0, 'rgba(14,22,44,.92)');
+  ledGrad.addColorStop(1, 'rgba(8,13,28,.92)');
+  c.fillStyle = ledGrad;
+  roundRectOn(c, CX - W*.46, ledY, W*.92, ledH, 8*s);
+  c.fill();
+  c.strokeStyle = 'rgba(126,156,220,.25)';
+  c.lineWidth = 1;
+  roundRectOn(c, CX - W*.46, ledY, W*.92, ledH, 8*s);
+  c.stroke();
+  c.save();
+  roundRectOn(c, CX - W*.46, ledY, W*.92, ledH, 8*s);
+  c.clip();
+  c.font = fnt(700, 13*s);
+  c.textAlign = 'left';
+  c.textBaseline = 'middle';
+  const ledText = '跆拳道 × AI 对战　·　WT 竞技规则　·　抖音校园 WowLand　·　上海理工大学跆拳道社　·　五局三胜 · KO 制　·　';
+  const tw = c.measureText(ledText).width;
+  c.fillStyle = 'rgba(147,197,253,.55)';
+  for(let x = CX - W*.46; x < CX + W*.46; x += tw) c.fillText(ledText, x, ledY + ledH/2 + 1);
+  c.restore();
+
+  // ---- 观众席（三排剪影，远→近渐暗） ----
+  const rowBase = GROUND - 178*s;
+  const rows = [
+    { y: rowBase - 26*s, sp: 26, hr: 8*s,  a: .30, j: 3.1 },
+    { y: rowBase - 6*s,  sp: 30, hr: 10*s, a: .42, j: 7.7 },
+    { y: rowBase + 18*s, sp: 34, hr: 12*s, a: .55, j: 4.3 },
+  ];
+  for(const row of rows){
+    c.fillStyle = `rgba(6,9,18,${row.a})`;
+    for(let i=0;i<Math.ceil(W/row.sp)+2;i++){
+      const hx = i*row.sp + (row.j*7 % row.sp);
+      const hr = row.hr * (0.8 + Math.abs(Math.sin(i*row.j))*.5);
+      const hy = row.y - Math.abs(Math.sin(i*2.9))*8*s;
+      c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI*2); c.fill();
+      c.fillRect(hx - hr*1.15, hy + hr*.6, hr*2.3, hr*2.6);
+    }
+  }
+
+  // ---- 顶光桁架 ----
+  c.strokeStyle = 'rgba(126,156,220,.14)';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(0, 26); c.lineTo(W, 26);
+  c.moveTo(0, 38); c.lineTo(W, 38);
+  c.stroke();
   for(const lx of [CX - COURT*.55, CX + COURT*.55]){
-    const gr = c.createLinearGradient(0, 0, 0, GROUND);
-    gr.addColorStop(0, 'rgba(130,175,255,.11)');
-    gr.addColorStop(1, 'rgba(130,175,255,0)');
-    c.fillStyle = gr;
-    c.beginPath();
-    c.moveTo(lx - 26, 0); c.lineTo(lx + 26, 0);
-    c.lineTo(lx + 150, GROUND); c.lineTo(lx - 150, GROUND);
-    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(180,215,255,.8)';
+    c.fillRect(lx - 20, 36, 40, 5);
+    c.fillStyle = 'rgba(190,225,255,.9)';
+    for(const dx of [-14, 0, 14]) c.fillRect(lx + dx - 3, 41, 6, 7);
   }
-  // 观众剪影（两排，伪随机高度，暗于背景）
-  c.fillStyle = 'rgba(4,7,15,.5)';
-  for(let i=0;i<Math.ceil(W/34)+1;i++){
-    const hx = i*34 - 10;
-    const hr = 11 + Math.sin(i*7.3)*3.5;
-    const hy = GROUND - 118*s3 - Math.abs(Math.sin(i*3.7))*10;
-    c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI*2); c.fill();
-    c.fillRect(hx - hr, hy, hr*2, 30);
-  }
-  c.fillStyle = 'rgba(4,7,15,.62)';
-  for(let i=0;i<Math.ceil(W/28)+1;i++){
-    const hx = i*28 + 12;
-    const hr = 13 + Math.sin(i*5.1)*3;
-    const hy = GROUND - 92*s3 - Math.abs(Math.sin(i*2.9))*8;
-    c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI*2); c.fill();
-    c.fillRect(hx - hr, hy, hr*2, 34);
-  }
-  // 地面光带（赛场地面泛光）
-  const fl = c.createLinearGradient(0, GROUND - 26*s3, 0, GROUND);
-  fl.addColorStop(0, 'rgba(34,211,238,0)');
-  fl.addColorStop(1, 'rgba(34,211,238,.09)');
+
+  // ---- 地面 ----
+  const fl = c.createLinearGradient(0, GROUND - 8, 0, H);
+  fl.addColorStop(0, '#141d33');
+  fl.addColorStop(.18, '#0d1426');
+  fl.addColorStop(1, '#060a14');
   c.fillStyle = fl;
-  c.fillRect(0, GROUND - 26*s3, W, 26*s3);
+  c.fillRect(0, GROUND - 8, W, H - GROUND + 8);
+  // 地面中央泛光
+  const cg = c.createRadialGradient(CX, GROUND + 10, 10, CX, GROUND + 10, COURT*1.5);
+  cg.addColorStop(0, 'rgba(90,140,220,.13)');
+  cg.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = cg;
+  c.fillRect(CX - COURT*1.6, GROUND - 8, COURT*3.2, H - GROUND + 8);
 
   // 中央场地线
-  c.strokeStyle = 'rgba(34,211,238,.25)';
+  c.strokeStyle = 'rgba(34,211,238,.28)';
   c.lineWidth = 2;
-  c.setLineDash([10, 12]);
+  c.setLineDash([12, 14]);
   c.beginPath(); c.moveTo(0, GROUND); c.lineTo(W, GROUND); c.stroke();
   c.setLineDash([]);
-  // 中心圆
-  c.strokeStyle = 'rgba(34,211,238,.18)';
-  c.beginPath(); c.arc(CX, GROUND, 130, 0, Math.PI*2); c.stroke();
 
-  // WT 比赛区：出界区（淡红）+ 边界警戒线（完全出界判 gam-jeom）
-  c.fillStyle = 'rgba(255,59,92,.055)';
-  c.fillRect(0, 0, CX - COURT, H);
-  c.fillRect(CX + COURT, 0, W - CX - COURT, H);
-  c.strokeStyle = 'rgba(255,59,92,.6)';
+  // WT 比赛区：大圆 + 内环
+  c.strokeStyle = 'rgba(103,232,249,.20)';
   c.lineWidth = 2.5;
-  for(const bx of [CX - COURT, CX + COURT]){
-    c.beginPath();
-    c.moveTo(bx, GROUND + 4);
-    c.lineTo(bx, GROUND - 170*s3);
-    c.stroke();
-    // 底部端点小三角（警戒标）
-    c.fillStyle = 'rgba(255,59,92,.6)';
-    c.beginPath();
-    c.moveTo(bx, GROUND - 4); c.lineTo(bx - 7, GROUND - 14); c.lineTo(bx + 7, GROUND - 14);
-    c.closePath(); c.fill();
-  }
-  c.font = `600 ${10*s3}px sans-serif`;
-  c.fillStyle = 'rgba(255,59,92,.5)';
-  c.textAlign = 'center';
-  c.fillText('出界判罚线', CX - COURT, GROUND - 178*s3);
-  c.fillText('出界判罚线', CX + COURT, GROUND - 178*s3);
-}
+  c.beginPath(); c.ellipse(CX, GROUND + 14*s, COURT*.72, COURT*.16, 0, 0, Math.PI*2); c.stroke();
+  c.strokeStyle = 'rgba(103,232,249,.10)';
+  c.beginPath(); c.ellipse(CX, GROUND + 14*s, COURT*.55, COURT*.11, 0, 0, Math.PI*2); c.stroke();
+  // 中心徽记：双圆 + 「TKD × AI」
+  c.font = fnt(800, 11*s);
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = 'rgba(147,197,253,.30)';
+  c.fillText('TKD × AI', CX, GROUND + 14*s + 20*s);
 
-function drawGround(){
-  // 静态背景直接贴缓存（扩边清底：震屏偏移时不露底）
+  // 出界判罚线（地面短标，不再画满屏红线）
+  for(const bx of [CX - COURT, CX + COURT]){
+    c.strokeStyle = 'rgba(255,90,115,.55)';
+    c.lineWidth = 3;
+    c.beginPath(); c.moveTo(bx, GROUND + 2); c.lineTo(bx, GROUND - 60*s); c.stroke();
+    // 底部警戒三角
+    c.fillStyle = 'rgba(255,90,115,.7)';
+    c.beginPath();
+    c.moveTo(bx, GROUND + 2); c.lineTo(bx - 8, GROUND + 16); c.lineTo(bx + 8, GROUND + 16);
+    c.closePath(); c.fill();
+    c.font = fnt(700, 10*s);
+    c.fillStyle = 'rgba(255,120,140,.55)';
+    c.fillText('出界线', bx, GROUND - 70*s);
+  }
+  // 两端角落光柱（电子计分柱）
+  for(const px of [CX - COURT - 26, CX + COURT + 26]){
+    const pg = c.createLinearGradient(0, GROUND - 150*s, 0, GROUND);
+    pg.addColorStop(0, 'rgba(126,156,220,0)');
+    pg.addColorStop(1, 'rgba(126,156,220,.14)');
+    c.fillStyle = pg;
+    c.fillRect(px - 3, GROUND - 150*s, 6, 150*s);
+    c.fillStyle = 'rgba(200,225,255,.35)';
+    roundRectOn(c, px - 9, GROUND - 160*s, 18, 12*s, 3*s);
+    c.fill();
+  }
+}
+function roundRectOn(c, x, y, w, h, r){
+  c.beginPath();
+  c.moveTo(x+r, y); c.arcTo(x+w, y, x+w, y+h, r); c.arcTo(x+w, y+h, x, y+h, r);
+  c.arcTo(x, y+h, x, y, r); c.arcTo(x, y, x+w, y, r); c.closePath();
+}
+function roundRect(x,y,w,h,r){ roundRectOn(ctx, x,y,w,h,r); }
+
+function drawGround(t){
+  // 静态背景贴缓存（扩边清底：震屏偏移时不露底）
   ctx.clearRect(-40, -40, W + 80, H + 80);
   if(bgCache) ctx.drawImage(bgCache, 0, 0, W, H);
+
+  const s = SCALE();
+  // —— 动态氛围：扫描光束 ——
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for(let i=0;i<2;i++){
+    const lx = CX + (i===0 ? -1 : 1) * COURT*.55;
+    const sway = Math.sin(t*.32 + i*2.4) * .1;
+    const a = .05 + .035 * (0.5 + 0.5*Math.sin(t*.7 + i*1.7));
+    const gr = ctx.createLinearGradient(0, 40, 0, GROUND);
+    gr.addColorStop(0, `rgba(140,190,255,${a*1.6})`);
+    gr.addColorStop(1, 'rgba(140,190,255,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.moveTo(lx - 22, 40); ctx.lineTo(lx + 22, 40);
+    ctx.translate(lx, 40); ctx.rotate(sway); ctx.translate(-lx, -40);
+    ctx.lineTo(lx + 170*s, GROUND); ctx.lineTo(lx - 170*s, GROUND);
+    ctx.closePath(); ctx.fill();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  ctx.restore();
+
+  // 观众席星光（手机灯闪烁）
+  ctx.save();
+  for(let i=0;i<12;i++){
+    const bx = (Math.sin(i*12.9898)*43758.5453 % 1) * W;
+    const by = GROUND - (150 + (i%3)*26)*s;
+    const tw = Math.max(0, Math.sin(t*(1.3 + (i%5)*.4) + i*2.2));
+    if(tw > .75){
+      ctx.globalAlpha = (tw - .75) * 2.4;
+      ctx.fillStyle = i%3===0 ? '#bae6fd' : '#fef3c7';
+      ctx.beginPath(); ctx.arc(Math.abs(bx), by, 1.6*s, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // 赛场浮尘
+  ctx.save();
+  for(const em of embers){
+    ctx.globalAlpha = em.a * (0.6 + 0.4*Math.sin(em.ph*2));
+    ctx.fillStyle = '#9ec5ff';
+    ctx.beginPath(); ctx.arc(em.x, em.y, em.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  // 出招者脚下聚光
+  for(const g of [player, ai]){
+    if(state.mode !== STATE.fight && state.mode !== STATE.over) break;
+    const gr = ctx.createRadialGradient(g.x, GROUND + 4, 4, g.x, GROUND + 4, 70*s);
+    gr.addColorStop(0, 'rgba(150,190,255,.14)');
+    gr.addColorStop(1, 'rgba(150,190,255,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.ellipse(g.x, GROUND + 6, 70*s, 16*s, 0, 0, Math.PI*2); ctx.fill();
+  }
 }
 
+/* ---------- 绘制 · 选手 ---------- */
 function drawFighter(f, t, dt){
   const s = SCALE();
   ctx.save();
   ctx.translate(f.x, GROUND - (f.y||0));   // 跳跃抬高
   // 影子（空中时投影在地面）
   ctx.fillStyle = 'rgba(0,0,0,' + clamp(.5 - (f.y||0)/260, .12, .5) + ')';
-  ctx.beginPath(); ctx.ellipse(0, (f.y||0) + 2, 26*s, 6*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, (f.y||0) + 2, 30*s, 6.5*s, 0, 0, Math.PI*2); ctx.fill();
 
-  // 受击反馈：整体变白一瞬，尾段线性回彩（无透明度振荡，不闪烁）
+  // 受击反馈：整体变白一瞬
   const isPlayer = f.side==='p';
-  const fw = f.flash > .08 ? 1 : f.flash / .08;   // 白闪强度 1→0
+  const fw = f.flash > .08 ? 1 : f.flash / .08;
   // WT 比赛装：白道服 + 红/蓝护具（护头/护甲/拳套）
-  const gear    = mixC(isPlayer ? '#38a8e0' : '#ff4d68', '#ffffff', fw);
-  const gearDk  = mixC(isPlayer ? '#1e7cb0' : '#d03050', '#e2e8f0', fw);
-  const cloth   = mixC('#f2f6fb', '#ffffff', fw);
-  const clothDk = mixC('#cfd9e6', '#e2e8f0', fw);
-  const clothFar= mixC('#b9c4d4', '#eef2f7', fw);   // 远端肢体（暗一档，分层感）
+  const gear    = mixC(isPlayer ? '#25aae4' : '#ff4257', '#ffffff', fw);
+  const gearDk  = mixC(isPlayer ? '#136a99' : '#c22840', '#e2e8f0', fw);
+  const gearHi  = mixC(isPlayer ? '#7ddcff' : '#ff8f9e', '#ffffff', fw);
+  const cloth   = mixC('#f4f7fc', '#ffffff', fw);
+  const clothDk = mixC('#d4deeb', '#e2e8f0', fw);
+  const clothFar= mixC('#c2cede', '#eef2f7', fw);   // 远端肢体（暗一档，分层感）
   const skin    = mixC('#ffd9b3', '#ffffff', fw);
   const skinFar = mixC('#eac79e', '#f2f6fb', fw);
-  const lineC   = mixC('#1a2230', '#e8edf4', fw);
-  const colorMain = gear, colorDark = gearDk;
-  const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,59,92,';
+  const lineC   = mixC('#151d2c', '#e8edf4', fw);
+  const beltC   = isPlayer ? '#dbe7f5' : R().color;
+  const beltDk  = isPlayer ? '#b9c9dd' : mixC(R().color==='#1f2937' ? '#1f2937' : R().color, '#000000', .35);
+  const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,80,100,';
 
-  // 旋风踢（标准 Tornado Kick）：撤步转身蓄力 → 以支撑脚为轴转体 → 后腿从后向前画弧横扫（前旋踢）
+  // 旋风踢：绕纵轴「连续旋转」（正面→侧面压扁→背面→回正）
   const isSpinx = f.cast==='spinx';
   if(isSpinx){
-    // 绕纵轴「连续旋转」：scaleX = cos(cyc·2π)，1→0→-1→0→1 平滑形变
-    //（正面→侧面压扁→背面→回正，真转体感；旧版镜像硬切像纸片翻面）
     if(f.phase <= 2){
       const rotX = Math.abs(Math.cos(f.cyc * Math.PI * 2)) < .04 ? .04*Math.sign(Math.cos(f.cyc*Math.PI*2)||1) : Math.cos(f.cyc * Math.PI * 2);
       ctx.scale(rotX, 1);
     }
-    if(f.phase === 1) ctx.rotate(-f.face * .18);       // 转体侧倾
-    if(f.phase === 2) ctx.rotate(f.face * .18);        // 踢出微倾
-    // 多重残影（转体轨迹扇）
+    if(f.phase === 1) ctx.rotate(-f.face * .18);
+    if(f.phase === 2) ctx.rotate(f.face * .18);
+    // 多重残影（转体轨迹）
     ctx.save();
-    ctx.globalAlpha = .12;
+    ctx.globalAlpha = .14;
     for(let i=1;i<=4;i++){
       ctx.save();
-      ctx.translate(-f.face*i*7*s, 0);
+      ctx.translate(-f.face*i*8*s, 0);
       ctx.rotate(-f.cyc*0.9 - i*.55);
-      ctx.fillStyle = colorGlow + '.4)';
-      ctx.fillRect(-12*s, -86*s, 24*s, 86*s);
+      ctx.fillStyle = colorGlow + '.35)';
+      roundRect(-10*s, -96*s, 20*s, 96*s, 9*s);
+      ctx.beginPath(); ctx.arc(0, -108*s, 12*s, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
     ctx.restore();
   }
 
-  // 后踢（dwit chagi）：转身残影（前倾发力由 kickPose.lean 驱动）
+  // 后踢：转身残影
   if(f.cast==='back'){
     const bp = clamp(f.stT/.14, 0, 1);
     ctx.save();
-    ctx.globalAlpha = .13;
+    ctx.globalAlpha = .14;
     for(let i=1;i<=2;i++){
       ctx.save();
       ctx.translate(-f.face*i*5*s, 0);
       ctx.rotate(f.face*.3*bp - i*.4);
-      ctx.fillStyle = colorGlow + '.4)';
-      ctx.fillRect(-12*s, -86*s, 24*s, 86*s);
+      ctx.fillStyle = colorGlow + '.35)';
+      roundRect(-10*s, -96*s, 20*s, 96*s, 9*s);
+      ctx.beginPath(); ctx.arc(0, -108*s, 12*s, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
     ctx.restore();
@@ -1201,82 +1620,73 @@ function drawFighter(f, t, dt){
     const prog = f.rise>0 ? (f.rise) : ease(Math.min(1, f.kdT/.25));
     ctx.translate(f.face * (1-prog) * 10*s, 0);
     ctx.rotate(-f.face * (1-prog) * 1.4);
-    if(f.rise>0) ctx.translate(0, -prog * 20*s);   // 读秒起身：身体抬升
+    if(f.rise>0) ctx.translate(0, -prog * 20*s);
   }
 
-  const bob = Math.sin(t*4 + (f.side==='p' ? 0 : 2.1)) * 1.3 * s * (f.bobAmp || 0);   // 呼吸浮动（幅度小、相位固定、切换平滑）
+  const bob = Math.sin(t*4 + (f.side==='p' ? 0 : 2.1)) * 1.4 * s * (f.bobAmp || 0);
   ctx.translate(0, bob);   // 呼吸浮动（整身）
 
   // 朝向镜像：以下身体部件统一按 face 水平翻转
-  //（修复向左移动/出招时腿臂摆动、出拳方向不镜像的"往左顿"问题）
   ctx.save();
   ctx.scale(f.face, 1);
 
   // —— 人体比例（脚底 y=0 贴地，向上为负）——
-  const hipY = -46*s, shY = -84*s;           // 髋部 / 肩部
-  const headR = 11.5*s, headY = -98*s;       // 头
-  // 踢腿姿态：横踢按 WT 标准五阶段（重心上移 → 侧向高提膝 → 支撑脚 pivot → 弧线弹腿 → 收腿）
-  // 上身向远离目标侧倾斜（trunk lean：加踢距 + 平衡，横踢标志性形态）
-  // 飞踢：空中前伸直腿；后踢：转身蹬腿（前倾 + 腿蹬直）
-  let kickPose = null;   // { kneeA, shinA, lean }：大腿角 / 小腿相对角 / 躯干倾斜
+  const hipY = -52*s, shY = -96*s;
+  const headR = 12.5*s, headY = -113*s;
+  // 踢腿姿态：按 WT 标准五阶段
+  let kickPose = null;   // { kneeA, shinA, lean }
   if(f.state==='kick' && !isSpinx){
     if(f.flyKick){
-      kickPose = { kneeA: -1.15, shinA: -.35, lean: -.1 };     // 飞踢：腿前伸
+      kickPose = { kneeA: -1.15, shinA: -.35, lean: -.1 };
     } else if(f.cast==='back'){
-      kickPose = { kneeA: -1.35, shinA: -.05, lean: .24 };     // 后踢：腿蹬直 + 上身前倾发力
+      kickPose = { kneeA: -1.35, shinA: -.05, lean: .24 };
     } else if(f.cast==='axe'){
-      // 下劈：直腿从头上方弧线劈下（脚经过头部高度，3 分踢头）
-      const p1 = clamp(f.stT/.24, 0, 1);                       // 直腿上摆过头
-      const p2 = clamp((f.stT-.24)/.12, 0, 1);                 // 向下劈击
-      const p3 = clamp((f.stT-.36)/.24, 0, 1);                 // 收腿回架
+      const p1 = clamp(f.stT/.24, 0, 1);
+      const p2 = clamp((f.stT-.24)/.12, 0, 1);
+      const p3 = clamp((f.stT-.36)/.24, 0, 1);
       const kneeA = -2.55*p1 + 1.4*p2 + .45*p3;
-      const shinA = .9*p3;                                     // 全程直腿
+      const shinA = .9*p3;
       const lean  = -.14*p1 + .1*p3;
       kickPose = { kneeA, shinA, lean };
     } else if(f.cast==='side'){
-      // 侧踢：翻髋折叠 → 直线前踹（脚跟领先，前冲推进）
       const p1 = clamp(f.stT/.18, 0, 1);
       const p2 = clamp((f.stT-.18)/.12, 0, 1);
       const p3 = clamp((f.stT-.3)/.25, 0, 1);
       const kneeA = -1.5*p1 + .55*p3;
-      const shinA = 2.1*p1 - 2.3*p2 + .55*p3;                  // 折叠 → 全伸直
-      const lean  = -.3*p1 + .22*p3;                           // 大幅后仰配平
+      const shinA = 2.1*p1 - 2.3*p2 + .55*p3;
+      const lean  = -.3*p1 + .22*p3;
       kickPose = { kneeA, shinA, lean };
     } else {
-      // 横踢：侧向高提膝 → 转髋「大弧线横扫」（小腿扫过大角度弧线，区别于前踢的直线蹬）
       const p1 = clamp(f.stT/.15, 0, 1);
       const p2 = clamp((f.stT-.15)/.1, 0, 1);
       const p3 = clamp((f.stT-.25)/.25, 0, 1);
-      const kneeA = -1.7*p1 - .2*p2 + .62*p3;                  // 髋持续打开
-      const shinA = 2.3*p1 - 2.6*p2 + .55*p3;                  // 折叠 2.3 → 弧线扫过 → -0.3
+      const kneeA = -1.7*p1 - .2*p2 + .62*p3;
+      const shinA = 2.3*p1 - 2.6*p2 + .55*p3;
       const lean  = -.24*p1 + .2*p3;
       kickPose = { kneeA, shinA, lean };
     }
   }
-  // 旋风踢：后腿画弧横扫（前旋踢）—— 从后收腿 → 绕轴横扫到前
+  // 旋风踢：后腿画弧横扫
   let spinLeg = 0;
   if(isSpinx && f.phase >= 1){
-    const p = clamp((f.spinP) / 360, 0, 1);   // 转体进度 0→1
+    const p = clamp((f.spinP) / 360, 0, 1);
     if(f.phase === 1){
-      // 转体：后腿水平抬起前伸（横扫轨迹），随转体画弧
       spinLeg = 1.4 * Math.sin(p * Math.PI);
     } else if(f.phase === 2){
-      // 踢出：腿保持水平横扫前伸（前旋踢）
       spinLeg = 1.35;
     } else {
-      // 收势：腿回落
       spinLeg = 1.35 - clamp(f.stT, 0, .3) * 4;
     }
     kickPose = { kneeA: spinLeg, shinA: .12, lean: -.18 };
   }
-  const swing = Math.sin(f.stepT*8) * .35 * (f.swingAmp || 0);   // 行走摆腿（幅度缓动，停止平滑收势）
+  const swing = Math.sin(f.stepT*8) * .35 * (f.swingAmp || 0);   // 行走摆腿
 
-  // —— 体积化肢体：锥形胶囊（根粗末细）+ 关节球，告别火柴线条 ——
+  // —— 体积化肢体：锥形胶囊（根粗末细）+ 关节球 ——
   const capsule = (x1, y1, x2, y2, w1, w2, cIn) => {
     const a = Math.atan2(y2 - y1, x2 - x1);
     const nx = Math.cos(a + Math.PI/2), ny = Math.sin(a + Math.PI/2);
     for(const pass of [0, 1]){        // 0=描边层 1=内色层
-      const o = pass ? 0 : 2.1*s;
+      const o = pass ? 0 : 2.2*s;
       ctx.beginPath();
       ctx.moveTo(x1 + nx*(w1/2 + o), y1 + ny*(w1/2 + o));
       ctx.lineTo(x2 + nx*(w2/2 + o), y2 + ny*(w2/2 + o));
@@ -1287,36 +1697,46 @@ function drawFighter(f, t, dt){
       ctx.fillStyle = pass ? cIn : lineC;
       ctx.fill();
     }
+    // 上缘高光（体积感）
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = 1.1*s;
+    ctx.beginPath();
+    ctx.moveTo(x1 + nx*(w1*.28), y1 + ny*(w1*.28));
+    ctx.lineTo(x2 + nx*(w2*.3), y2 + ny*(w2*.3));
+    ctx.stroke();
   };
   const drawLeg = (hx, kneeA, shinA, cIn, footC) => {
-    const kx = hx*s - Math.sin(kneeA)*21*s, ky = hipY + Math.cos(kneeA)*21*s;
+    const kx = hx*s - Math.sin(kneeA)*23*s, ky = hipY + Math.cos(kneeA)*23*s;
     const fa = kneeA + shinA;
-    const fx2 = kx - Math.sin(fa)*19*s, fy2 = ky + Math.cos(fa)*19*s;
-    capsule(hx*s, hipY, kx, ky, 11.5*s, 8.5*s, cIn);   // 大腿（道裤，锥形）
-    capsule(kx, ky, fx2, fy2, 9*s, 5.6*s, cIn);        // 小腿
+    const fx2 = kx - Math.sin(fa)*21*s, fy2 = ky + Math.cos(fa)*21*s;
+    capsule(hx*s, hipY, kx, ky, 13*s, 9.5*s, cIn);   // 大腿（道裤）
+    capsule(kx, ky, fx2, fy2, 10*s, 6*s, cIn);       // 小腿
     // 膝关节球
-    ctx.beginPath(); ctx.arc(kx, ky, 3*s, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(kx, ky, 3.2*s, 0, Math.PI*2);
     ctx.fillStyle = cIn; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.2*s; ctx.stroke();
-    // 赤足（脚尖朝前）
-    ctx.beginPath(); ctx.ellipse(fx2 + 2.5*s, fy2 + 1.2*s, 5.4*s, 2.8*s, 0, 0, Math.PI*2);
+    // 赤足（脚尖朝前）+ 脚背护垫
+    ctx.beginPath(); ctx.ellipse(fx2 + 3*s, fy2 + 1.2*s, 6*s, 3*s, 0, 0, Math.PI*2);
     ctx.fillStyle = footC; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(fx2 + 1.5*s, fy2 - 1.6*s, 4.2*s, 2.2*s, -.3, 0, Math.PI*2);
+    ctx.fillStyle = gear; ctx.fill();
     return [fx2, fy2];
   };
   const drawArm = (sx, upperA, foreA, cIn, fist) => {
-    const ex = sx*s - Math.sin(upperA)*11*s, ey = shY + 3*s + Math.cos(upperA)*11*s;
-    const fx2 = ex - Math.sin(foreA)*12*s, fy2 = ey + Math.cos(foreA)*12*s;
-    capsule(sx*s, shY + 3*s, ex, ey, 8.5*s, 6*s, cIn);   // 上臂
-    capsule(ex, ey, fx2, fy2, 6.8*s, 4.6*s, cIn);        // 前臂
-    // 肘关节球
-    ctx.beginPath(); ctx.arc(ex, ey, 2.4*s, 0, Math.PI*2);
+    const ex = sx*s - Math.sin(upperA)*12*s, ey = shY + 3*s + Math.cos(upperA)*12*s;
+    const fx2 = ex - Math.sin(foreA)*13*s, fy2 = ey + Math.cos(foreA)*13*s;
+    capsule(sx*s, shY + 3*s, ex, ey, 9.5*s, 6.8*s, cIn);   // 上臂
+    capsule(ex, ey, fx2, fy2, 7.5*s, 5*s, cIn);            // 前臂
+    ctx.beginPath(); ctx.arc(ex, ey, 2.6*s, 0, Math.PI*2);
     ctx.fillStyle = cIn; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.1*s; ctx.stroke();
     // 拳套（护手）
-    ctx.beginPath(); ctx.arc(fx2, fy2, 4.4*s, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(fx2, fy2, 5*s, 0, Math.PI*2);
     ctx.fillStyle = fist; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
+    ctx.beginPath(); ctx.arc(fx2 - 1*s, fy2 - 1*s, 1.6*s, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
   };
 
   // —— 手臂姿态（跆拳道实战架：肘内收、双拳护脸；踢击时摆臂平衡）——
@@ -1326,118 +1746,154 @@ function drawFighter(f, t, dt){
     const armA = f.phase===0 ? 1.1 : (f.phase>=2 ? -0.4 : 1.6);
     frontArm = { u: armA, f: -1.9 };
   } else if(f.state==='block'){
-    backArm = { u: 0.4, f: -2.7 };                 // 双前臂横挡胸前，肘夹紧
+    backArm = { u: 0.4, f: -2.7 };
     frontArm = { u: -0.35, f: -2.85 };
   } else if(f.state==='attack'){
     const punch = f.stT >= .12;
-    frontArm = punch ? { u: -1.3, f: -1.35 } : { u: -0.5, f: -2.6 };   // 收拳 → 冲拳打直
+    frontArm = punch ? { u: -1.3, f: -1.35 } : { u: -0.5, f: -2.6 };
     backArm = { u: 0.45, f: -2.75 };
   } else if(f.state==='kick'){
-    backArm = { u: 0.35, f: -2.8 };                // 踢击：后手保持护脸
-    frontArm = { u: 0.55, f: -2.0 };               // 前臂向后摆（配平躯干倾斜）
+    backArm = { u: 0.35, f: -2.8 };
+    frontArm = { u: 0.55, f: -2.0 };
   } else {
-    backArm = { u: 0.45 + swing*.15, f: -2.75 };   // 后手贴下巴侧
-    frontArm = { u: -0.05 + swing*.12, f: -2.2 };  // 前手略低在前（WT 守势）
+    backArm = { u: 0.45 + swing*.15, f: -2.75 };
+    frontArm = { u: -0.05 + swing*.12, f: -2.2 };
   }
 
   // —— 绘制（踢击躯干倾斜 → 远端肢体 → 躯干 → 近端肢体，分层）——
-  // 横踢标志形态：上身绕髋向远离目标侧仰（加踢距 + 平衡）
   if(kickPose && kickPose.lean){
     ctx.translate(0, hipY); ctx.rotate(kickPose.lean); ctx.translate(0, -hipY);
   }
   // 远端臂（后臂）
-  drawArm(-4.5, backArm.u, backArm.f, clothFar, gearDk);
-  // 远端腿（后腿：大开立 + 微屈膝；踢击时支撑腿直立、重心升高）
+  drawArm(-5, backArm.u, backArm.f, clothFar, gearDk);
+  // 远端腿（后腿：大开立 + 微屈膝；踢击时支撑腿直立）
   const support = kickPose ? 1 : 0;
-  drawLeg(-6, 0.30 - support*.18 - swing*.5, -0.52 + support*.35 + swing*.2, clothFar, skinFar);
+  drawLeg(-7, 0.30 - support*.18 - swing*.5, -0.52 + support*.35 + swing*.2, clothFar, skinFar);
 
   // 躯干（白道服）+ V 领
   ctx.fillStyle = cloth;
-  roundRect(-11*s, shY + 2*s, 22*s, hipY - shY - 2*s, 6*s);
+  roundRect(-12*s, shY + 2*s, 24*s, hipY - shY - 2*s, 7*s);
   ctx.strokeStyle = lineC; ctx.lineWidth = 1.6*s; ctx.stroke();
   ctx.strokeStyle = clothDk; ctx.lineWidth = 1.8*s;
-  ctx.beginPath(); ctx.moveTo(-4*s, shY + 3*s); ctx.lineTo(0, shY + 13*s); ctx.lineTo(5*s, shY + 3*s); ctx.stroke();
-  // 护甲 hogu（前片，主色）
+  ctx.beginPath(); ctx.moveTo(-4*s, shY + 3*s); ctx.lineTo(0, shY + 14*s); ctx.lineTo(5*s, shY + 3*s); ctx.stroke();
+  // 护甲 hogu（前片，主色 + 高光 + 描边）
   ctx.fillStyle = gear;
   ctx.beginPath();
   ctx.moveTo(1.5*s, shY + 5*s);
-  ctx.quadraticCurveTo(12*s, shY + 9*s, 11*s, shY + 24*s);
-  ctx.lineTo(9*s, hipY - 9*s);
+  ctx.quadraticCurveTo(13*s, shY + 9*s, 12*s, shY + 25*s);
+  ctx.lineTo(10*s, hipY - 9*s);
   ctx.quadraticCurveTo(4*s, hipY - 5*s, -0.5*s, hipY - 8*s);
   ctx.closePath(); ctx.fill();
   ctx.strokeStyle = lineC; ctx.lineWidth = 1.4*s; ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.4*s;
-  ctx.beginPath(); ctx.moveTo(2.5*s, shY + 10*s); ctx.lineTo(8.5*s, hipY - 11*s); ctx.stroke();
-  // 腰带（AI 用段位色；玩家白带加深边区分道服）
-  ctx.fillStyle = isPlayer ? '#e8eefc' : R().color;
-  ctx.fillRect(-11*s, hipY - 3*s, 22*s, 4.5*s);
+  // hogu 高光斜条
+  ctx.strokeStyle = gearHi; ctx.lineWidth = 2.2*s;
+  ctx.beginPath(); ctx.moveTo(3*s, shY + 11*s); ctx.lineTo(9.5*s, hipY - 12*s); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1*s;
+  ctx.beginPath(); ctx.moveTo(5*s, shY + 11*s); ctx.lineTo(11*s, hipY - 12*s); ctx.stroke();
+  // 腰带（AI 用段位色；玩家白带）+ 垂带
+  ctx.fillStyle = beltC;
+  ctx.fillRect(-12*s, hipY - 3.5*s, 24*s, 5*s);
   ctx.strokeStyle = lineC; ctx.lineWidth = 1*s;
-  ctx.strokeRect(-11*s, hipY - 3*s, 22*s, 4.5*s);
+  ctx.strokeRect(-12*s, hipY - 3.5*s, 24*s, 5*s);
+  // 垂带（随呼吸摆动）
+  const knotSw = Math.sin(t*3 + (f.side==='p'?0:1.4)) * .12;
+  ctx.save();
+  ctx.translate(-9*s, hipY + 1*s);
+  ctx.rotate(.35 + knotSw);
+  ctx.fillStyle = beltDk;
+  roundRect(-1.8*s, 0, 3.6*s, 15*s, 1.8*s);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(-8*s, hipY + 1*s);
+  ctx.rotate(.75 + knotSw*.7);
+  ctx.fillStyle = beltC;
+  roundRect(-1.6*s, 0, 3.2*s, 12*s, 1.6*s);
+  ctx.strokeStyle = lineC; ctx.lineWidth = .8*s; ctx.stroke();
+  ctx.restore();
 
-  // 近端腿（前腿：踢击/stance，大开立）
+  // 近端腿（前腿：踢击/stance）
   if(kickPose){
-    const foot = drawLeg(4, kickPose.kneeA, kickPose.shinA, cloth, skin);
-    // 踢击金色轨迹：记录脚的世界坐标（拖尾渲染在 restore 后）
+    const foot = drawLeg(5, kickPose.kneeA, kickPose.shinA, cloth, skin);
+    // 踢击轨迹：记录脚的世界坐标
     if(f.state==='kick'){
       const trail = (f.kickTrail = f.kickTrail || []);
       trail.push({ x: f.x + foot[0]*f.face, y: GROUND - (f.y||0) + foot[1], life: .38 });
       if(trail.length > 26) trail.shift();
     }
   }
-  else drawLeg(5, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin);
+  else drawLeg(6, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin);
 
   // 脖子（衔接头与躯干）
-  capsule(0, shY + 4*s, 0, headY + headR - 2*s, 6.5*s, 5.5*s, skinFar);
+  capsule(0, shY + 4*s, 0, headY + headR - 2*s, 7*s, 6*s, skinFar);
 
-  // 头（肤色）+ 护头（主色，前脸大开口）+ 眼（白底 + 瞳）
+  // 头（肤色）+ 护头（主色，前脸大开口）+ 眼（白底 + 瞳 + 剑眉）
   ctx.beginPath(); ctx.arc(0, headY, headR, 0, Math.PI*2);
   ctx.fillStyle = skin; ctx.fill();
   ctx.strokeStyle = lineC; ctx.lineWidth = 1.6*s; ctx.stroke();
+  // 护头
   ctx.beginPath();
-  ctx.arc(0, headY, headR + 2.5*s, Math.PI*.35, Math.PI*1.75);
-  ctx.arc(0, headY, headR - 1*s, Math.PI*1.75, Math.PI*.35, true);
+  ctx.arc(0, headY, headR + 2.8*s, Math.PI*.32, Math.PI*1.78);
+  ctx.arc(0, headY, headR - 1*s, Math.PI*1.78, Math.PI*.32, true);
   ctx.closePath();
   ctx.fillStyle = gear; ctx.fill();
   ctx.strokeStyle = lineC; ctx.lineWidth = 1.5*s; ctx.stroke();
-  ctx.strokeStyle = gearDk; ctx.lineWidth = 1.8*s;
-  ctx.beginPath(); ctx.arc(0, headY, headR + .8*s, Math.PI*1.1, Math.PI*1.5); ctx.stroke();
+  // 护头高光
+  ctx.strokeStyle = gearHi; ctx.lineWidth = 1.8*s;
+  ctx.beginPath(); ctx.arc(0, headY, headR + .8*s, Math.PI*1.12, Math.PI*1.5); ctx.stroke();
+  // 眼睛（白底 + 瞳孔）+ 眉（出招/受击时更凶）
+  const rage = (f.state==='kick' || f.state==='attack' || f.freeze>0) ? 1 : 0;
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(4.8*s, headY - .5*s, 2.6*s, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5*s, headY - .5*s, 3*s, 2.4*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = .8*s; ctx.stroke();
   ctx.fillStyle = '#1e293b';
-  ctx.beginPath(); ctx.arc(5.6*s, headY - .5*s, 1.2*s, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6*s, headY - .4*s, 1.3*s, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1.5*s;
+  ctx.beginPath();
+  ctx.moveTo(2.2*s, headY - 4.6*s + rage*1.2*s);
+  ctx.lineTo(8*s, headY - 3.2*s - rage*.6*s);
+  ctx.stroke();
 
   // 近端臂（前臂）
-  drawArm(4.5, frontArm.u, frontArm.f, cloth, gear);
+  drawArm(5, frontArm.u, frontArm.f, cloth, gear);
 
-  // 旋风踢：脚下旋转光弧（转体时金色弧光）
+  // 旋风踢：脚下旋转光弧
   if(isSpinx){
-    // phase1 转体：光弧随转体扫一大圈；phase2+ 踢出：光弧定格在身前
     const arcStart = f.phase===0 ? -f.cyc*1.5 : (f.phase===1 ? -1.5 - f.spinP/40 : 2.2 - f.spinP/40*0.3);
-    ctx.strokeStyle = 'rgba(251,191,36,.8)';
+    ctx.strokeStyle = 'rgba(251,191,36,.85)';
+    ctx.lineWidth = 3.5*s; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.arc(0, 0, 48*s, arcStart, arcStart + 2.2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(251,191,36,.3)';
+    ctx.lineWidth = 7*s;
+    ctx.beginPath();
+    ctx.arc(0, 0, 48*s, arcStart, arcStart + 1.4);
+    ctx.stroke();
+  }
+  // 飞踢：空中前冲拖尾
+  if(f.flyKick && f.airborne){
+    ctx.strokeStyle = 'rgba(251,191,36,.55)';
     ctx.lineWidth = 3*s; ctx.lineCap='round';
     ctx.beginPath();
-    ctx.arc(0, 0, 44*s, arcStart, arcStart + 2.2);
-    ctx.stroke();
-  }
-  // 飞踢：空中前冲拖尾（金色线迹）
-  if(f.flyKick && f.airborne){
-    ctx.strokeStyle = 'rgba(251,191,36,.5)';
-    ctx.lineWidth = 2.5*s; ctx.lineCap='round';
-    ctx.beginPath();
-    ctx.moveTo(-30*s, -8*s); ctx.lineTo(0, 0);
+    ctx.moveTo(-34*s, -6*s); ctx.lineTo(0, 0);
     ctx.stroke();
   }
 
-  ctx.restore();   // 结束朝向镜像（粒子用世界坐标差值，不参与镜像）
+  ctx.restore();   // 结束朝向镜像
 
-  // 踢击金色轨迹（世界坐标拖尾，渲染在镜像 restore 后）
+  // 踢击轨迹（世界坐标拖尾，渲染在镜像 restore 后）
   if(f.kickTrail && f.kickTrail.length){
-    for(const tp of f.kickTrail){
-      ctx.globalAlpha = clamp(tp.life/.38, 0, 1)*.8;
-      ctx.fillStyle = '#fcd34d';
+    ctx.lineCap = 'round';
+    for(let i=1;i<f.kickTrail.length;i++){
+      const tp = f.kickTrail[i], tp0 = f.kickTrail[i-1];
+      const k = tp.life/.38;
+      ctx.globalAlpha = k*.7;
+      ctx.strokeStyle = f.side==='p' ? 'rgba(125,237,255,1)' : 'rgba(255,157,176,1)';
+      ctx.lineWidth = (1 + 4.5*k)*s;
       ctx.beginPath();
-      ctx.arc(tp.x - f.x, tp.y - GROUND + (f.y||0), (2.6*tp.life/.38 + .8)*s, 0, Math.PI*2);
-      ctx.fill();
+      ctx.moveTo(tp0.x - f.x, tp0.y - GROUND + (f.y||0));
+      ctx.lineTo(tp.x - f.x, tp.y - GROUND + (f.y||0));
+      ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
@@ -1452,166 +1908,185 @@ function drawFighter(f, t, dt){
   ctx.restore();
 }
 
-function roundRect(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill();
+/* ---------- 绘制 · 世界特效 ---------- */
+function drawFx(){
+  const s = SCALE();
+  // 冲击波环
+  for(const r of rings){
+    const k = 1 - r.life/r.dur;
+    ctx.globalAlpha = (1-k)*.8;
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = r.lw*s*(1-k*.6);
+    ctx.beginPath();
+    ctx.ellipse(r.x, r.y, (r.r0 + (r.r1-r.r0)*ease(k))*s, (r.r0 + (r.r1-r.r0)*ease(k))*.62*s, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  // 命中星芒
+  for(const sp of sparks){
+    const k = sp.life/sp.dur;
+    const R0 = (sp.big ? 34 : 20) * (0.4 + 0.6*k) * s;
+    ctx.save();
+    ctx.translate(sp.x, sp.y);
+    ctx.rotate(sp.ang);
+    ctx.globalAlpha = k;
+    // 放射细线
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6*s;
+    for(let i=0;i<6;i++){
+      const a = i*Math.PI/3 + .3;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*R0*.4, Math.sin(a)*R0*.4);
+      ctx.lineTo(Math.cos(a)*R0*1.5, Math.sin(a)*R0*1.5);
+      ctx.stroke();
+    }
+    // 四角星核
+    ctx.fillStyle = sp.color;
+    ctx.beginPath();
+    const n = 8, out = R0, inn = R0*.36;
+    for(let i=0;i<n*2;i++){
+      const a = i*Math.PI/n - Math.PI/2;
+      const rr = i%2===0 ? out : inn;
+      i===0 ? ctx.moveTo(Math.cos(a)*rr, Math.sin(a)*rr) : ctx.lineTo(Math.cos(a)*rr, Math.sin(a)*rr);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(0, 0, R0*.22, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 }
 
-/* HUD */
+/* ---------- HUD ---------- */
+let comboPopT = 0, lastCombo = 0;
 function drawHUD(t){
   const rank = R();
   const s = SCALE();
-  const barW = Math.min(280, W*.30), barH = 16*s, y = 30;
+  const barW = Math.min(W*.36, 430), barH = 21, y = 26;
+  const skew = 12;
 
-  // 玩家 / AI 血条
-  hpBar(CX - 30 - barW, y, barW, barH, player, true);
-  hpBar(CX + 30, y, barW, barH, ai, false);
+  // ---- 玩家血条（右侧锚定，向左填充） ----
+  hpBar(CX - 44 - barW, y, barW, barH, player, true, skew);
+  // ---- AI 血条（左侧锚定，向左排空） ----
+  hpBar(CX + 44, y, barW, barH, ai, false, skew);
 
-  // 名字（含段位标签）
+  // 名字 + 段位
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign='left';
-  ctx.font = `800 ${15*s}px sans-serif`;
-  ctx.fillStyle = '#67e8f9';
-  ctx.fillText('你', CX - 30 - barW, y - 8);
-  ctx.font = `600 ${10.5*s}px sans-serif`;
-  ctx.fillStyle = 'rgba(103,232,249,.75)';
-  ctx.fillText('挑战者', CX - 30 - barW + 26*s, y - 8);
+  ctx.font = fnt(900, 15*s);
+  ctx.fillStyle = '#7dedff';
+  ctx.fillText('你 · 挑战者', CX - 44 - barW + 8, y - 9);
   ctx.textAlign='right';
-  ctx.font = `800 ${15*s}px sans-serif`;
-  ctx.fillStyle = '#ffb3c0';
-  ctx.fillText(`AI`, CX + 30 + barW - 34*s, y - 8);
-  ctx.font = `700 ${10.5*s}px sans-serif`;
-  ctx.fillStyle = rank.color;
-  ctx.fillText(rank.name, CX + 30 + barW, y - 8);
+  ctx.font = fnt(900, 15*s);
+  ctx.fillStyle = '#ff9db0';
+  ctx.fillText('AI', CX + 44 + barW - 8, y - 9);
+  ctx.font = fnt(800, 11*s);
+  ctx.fillStyle = rank.color==='#1f2937' ? '#9ca3af' : rank.color;
+  ctx.fillText(rank.name, CX + 44 + barW - 30*s, y - 9);
 
-  // 得分（WT 规则）
-  ctx.font = `900 ${20*s}px sans-serif`; ctx.textAlign='center';
-  ctx.fillStyle = '#fbbf24';
-  ctx.fillText(`${scoreP}`, CX - 30 - barW/2, y + 26*s);
-  ctx.fillStyle = '#f97316';
-  ctx.fillText(`${scoreA}`, CX + 30 + barW/2, y + 26*s);
-  ctx.font = `600 ${9.5*s}px sans-serif`;
-  ctx.fillStyle = 'rgba(147,163,199,.8)';
-  ctx.fillText('得分', CX - 30 - barW/2, y + 38*s);
-  ctx.fillText('得分', CX + 30 + barW/2, y + 38*s);
-
-  // 回合计时（WT：每回合限时）——计时框
+  // ---- 中央计时 ----
   const secs = Math.ceil(state.roundTime);
-  ctx.fillStyle = 'rgba(8,12,26,.8)';
-  roundRect(CX - 30*s, y + 4*s, 60*s, 26*s, 8*s);
-  ctx.strokeStyle = state.roundTime < 10 ? 'rgba(248,113,113,.6)' : 'rgba(147,163,199,.4)';
-  ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.font = `900 ${14*s}px sans-serif`;
-  ctx.fillStyle = state.roundTime < 10 ? '#f87171' : '#e8eefc';
-  ctx.fillText(`${secs}s`, CX, y + 22*s);
+  const urgent = state.roundTime < 10;
+  ctx.save();
+  ctx.translate(CX, y + 10);
+  // 六边形表框
+  ctx.fillStyle = 'rgba(8,12,26,.85)';
+  ctx.strokeStyle = urgent ? 'rgba(248,113,113,.8)' : 'rgba(126,156,220,.4)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  const hw = 34, hh = 25;
+  ctx.moveTo(-hw, -hh+6); ctx.lineTo(-hw+6, -hh); ctx.lineTo(hw-6, -hh); ctx.lineTo(hw, -hh+6);
+  ctx.lineTo(hw, hh-6); ctx.lineTo(hw-6, hh); ctx.lineTo(-hw+6, hh); ctx.lineTo(-hw, hh-6);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  if(urgent){
+    const pk = .5 + .5*Math.sin(t*10);
+    ctx.strokeStyle = `rgba(248,113,113,${.4*pk})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  ctx.fillStyle = urgent ? '#f87171' : '#eaf2ff';
+  ctx.font = fnt(900, 19);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${secs}`, 0, 1);
+  ctx.font = fnt(700, 8);
+  ctx.fillStyle = 'rgba(143,163,200,.8)';
+  ctx.fillText('SEC', 0, 14);
+  ctx.restore();
 
-  // 回合信息（中央）
+  // 回合数 + 大比分（菱形 pip）
   ctx.textAlign='center';
-  ctx.font = `900 ${16*s}px sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,.85)';
-  ctx.fillText(`第 ${roundNum} 回合`, CX, y + 52*s);
-
-  // 五局三胜 · 回合点指示（左3玩家 / 右3 AI）
-  const dotY = y + 70*s;
+  ctx.font = fnt(800, 11*s);
+  ctx.fillStyle = 'rgba(143,163,200,.9)';
+  ctx.fillText(`第 ${roundNum} 回合 · 五局三胜`, CX, y + hh2(46, s));
+  const dotY = y + hh2(62, s);
   for(let i=0;i<3;i++){
-    const pxd = CX - 46*s - i*16*s, axd = CX + 46*s + i*16*s;
-    ctx.beginPath(); ctx.arc(pxd, dotY, 4.5*s, 0, Math.PI*2);
-    ctx.fillStyle = i < roundWins ? '#fbbf24' : 'rgba(255,255,255,.15)';
-    ctx.fill();
-    if(i < roundWins){ ctx.strokeStyle = 'rgba(251,191,36,.5)'; ctx.lineWidth = 2*s; ctx.stroke(); }
-    ctx.beginPath(); ctx.arc(axd, dotY, 4.5*s, 0, Math.PI*2);
-    ctx.fillStyle = i < aiWins ? '#f97316' : 'rgba(255,255,255,.15)';
-    ctx.fill();
-    if(i < aiWins){ ctx.strokeStyle = 'rgba(249,115,22,.5)'; ctx.lineWidth = 2*s; ctx.stroke(); }
+    drawPip(CX - 34 - i*17, dotY, i < roundWins, '#fbbf24');
+    drawPip(CX + 34 + i*17, dotY, i < aiWins, '#ff6d89');
   }
 
-  // 提示（触屏设备显示触屏技巧，桌面显示键盘操作）
-  ctx.font = `500 ${11.5*s}px sans-serif`;
-  ctx.fillStyle = 'rgba(147,163,199,.7)';
-  if(isTouch()) ctx.fillText('连点踢=下劈→旋风踢 · 按住方向+踢=侧踢/后踢 · 空中踢=飞踢', CX, H - 12);
-  else ctx.fillText('A/D 移动 · W/空格 跳 · K 横踢 · 连点K=下劈→旋风踢 · 前进+K=侧踢 · 后退+K=后踢 · 空中K=飞踢 · J 正拳 · L 挡', CX, H - 24);
+  // WT 得分（血条下方）
+  drawScoreChip(CX - 44 - barW + barW/2, y + barH + 14, scoreP, '#fde047');
+  drawScoreChip(CX + 44 + barW/2, y + barH + 14, scoreA, '#fda4af');
 
-  // 玩家连击显示
+  // 提示（触屏设备不显示键盘提示）
+  if(!isTouch()){
+    ctx.font = fnt(500, 11*s);
+    ctx.fillStyle = 'rgba(143,163,200,.55)';
+    ctx.fillText('A/D 移动 · W/空格 跳 · J 拳 · K 踢 · L 挡 · 连点K=下劈→旋风踢 · 前进+K=侧踢 · 后退+K=后踢 · 空中K=飞踢', CX, H - 14);
+  }
+
+  // 连击（玩家）
   if(player.combo >= 2 && player.comboT > 0){
-    ctx.globalAlpha = clamp(player.comboT, 0, 1);
-    ctx.font = `900 ${18*s}px sans-serif`;
-    ctx.fillStyle = '#fbbf24';
-    ctx.textAlign = 'center';
-    ctx.fillText(`连击 ×${player.combo}`, CX - 30 - barW/2, y + 96*s);
-    ctx.globalAlpha = 1;
-  }
-
-  // 命中飘分（+1/+2/+3；负值 = 出界判罚提示）
-  for(const g of [player, ai]){
-    if(g.lastPt && g.lastPtT > 0){
-      ctx.globalAlpha = clamp(g.lastPtT*1.5, 0, 1);
-      ctx.font = `900 ${22*s}px sans-serif`;
-      if(g.lastPt < 0){
-        ctx.fillStyle = '#f87171';
-        ctx.fillText('出界判罚', g.x, GROUND - g.h - 20*s - (1-g.lastPtT)*30*s);
-        ctx.font = `700 ${13*s}px sans-serif`;
-        ctx.fillStyle = '#ffb3c0';
-        ctx.fillText('对方 +1', g.x, GROUND - g.h + 2*s - (1-g.lastPtT)*30*s);
-      } else {
-        ctx.fillStyle = g.side==='p' ? '#fbbf24' : '#f97316';
-        ctx.fillText(`+${g.lastPt}`, g.x, GROUND - g.h - 20*s - (1-g.lastPtT)*30*s);
-      }
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  // KO 读秒大数字（WT：裁判读秒）
-  if(state.count){
-    const vic = (state.count==='p') ? player : ai;
-    ctx.globalAlpha = .95;
-    ctx.font = `900 ${48*s}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = state.countNum<=1 ? '#f87171' : '#fbbf24';
-    ctx.fillText(`读秒 ${state.countNum}`, CX, H*.32);
-    ctx.font = `600 ${14*s}px sans-serif`;
-    ctx.fillStyle = 'rgba(232,238,252,.9)';
-    ctx.fillText(state.count==='p' ? '（快速连按 J/K 起身！）' : 'AI 正在起身…', CX, H*.32 + 26*s);
-    ctx.globalAlpha = 1;
-  }
-
-  // 中央提示文字
-  if(roundMsgT>0){
-    ctx.globalAlpha = clamp(roundMsgT, 0, 1);
-    ctx.font = `900 ${26*s}px sans-serif`;
-    ctx.fillStyle = '#e8eefc';
-    ctx.fillText(roundMsg, CX, H*.4);
-    ctx.globalAlpha = 1;
-  }
-  // 空中特技提示
-  if(player.cast==='spinx'){
-    ctx.font = `900 ${20*s}px sans-serif`;
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText('🌀 旋风踢!', CX, H*.5);
-  }
-  if(player.flyKick){
-    ctx.font = `900 ${20*s}px sans-serif`;
-    ctx.fillStyle = '#67e8f9';
-    ctx.fillText('🦵 飞踢!', CX, H*.5);
-  }
-
-  // 大字播报（K.O.! / 时间到）
-  if(bigMsg){
-    const k = 1 - bigMsg.t / bigMsg.dur;
-    const pop = k < .15 ? .4 + ease(k/.15)*.75 : 1.15 - Math.min(.15, (k-.15))*.5;
+    if(player.combo !== lastCombo){ comboPopT = .22; lastCombo = player.combo; }
+    comboPopT = Math.max(0, comboPopT - 1/60);
+    const pop = 1 + comboPopT*1.6;
     ctx.save();
-    ctx.translate(CX, H*.22);
+    ctx.globalAlpha = clamp(player.comboT*2, 0, 1);
+    ctx.translate(CX - 44 - barW/2, y + 108*s);
     ctx.scale(pop, pop);
-    ctx.globalAlpha = bigMsg.t < .3 ? clamp(bigMsg.t/.3, 0, 1) : 1;
-    ctx.font = `900 ${56*s}px sans-serif`;
+    ctx.font = fnt(900, 24*s);
+    ctx.fillStyle = '#fde047';
     ctx.textAlign = 'center';
-    ctx.lineWidth = 4*s;
-    ctx.strokeStyle = 'rgba(7,10,20,.65)';
-    ctx.strokeText(bigMsg.text, 0, 0);
-    ctx.fillStyle = bigMsg.color;
-    ctx.shadowColor = bigMsg.color;
-    ctx.shadowBlur = 30;
-    ctx.fillText(bigMsg.text, 0, 0);
+    ctx.strokeStyle = 'rgba(120,53,15,.9)'; ctx.lineWidth = 4*s;
+    ctx.strokeText(`×${player.combo}`, 0, 0);
+    ctx.fillText(`×${player.combo}`, 0, 0);
+    ctx.font = fnt(800, 11*s);
+    ctx.fillStyle = 'rgba(253,224,71,.85)';
+    ctx.strokeText('连击 COMBO', 0, 16*s);
+    ctx.fillText('连击 COMBO', 0, 16*s);
     ctx.restore();
+  }
+
+  // KO 读秒（裁判读秒）
+  if(state.count){
+    const vic = state.count==='p' ? player : ai;
+    ctx.save();
+    // 压暗四周
+    ctx.fillStyle = 'rgba(4,6,12,.42)';
+    ctx.fillRect(0, 0, W, H);
+    const cxr = CX, cyr = H*.34, rr0 = 56*s;
+    // 圆环进度（8 秒）
+    const prog = clamp(vic.kdT/8, 0, 1);
+    ctx.strokeStyle = 'rgba(255,255,255,.14)';
+    ctx.lineWidth = 6*s;
+    ctx.beginPath(); ctx.arc(cxr, cyr, rr0, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = state.countNum<=3 ? '#ff5470' : '#fbbf24';
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cxr, cyr, rr0, -Math.PI/2, -Math.PI/2 + (1-prog)*Math.PI*2); ctx.stroke();
+    // 大数字
+    const pk = 1 + Math.max(0, (state.countT%1) - .82) * .9;
+    ctx.translate(cxr, cyr); ctx.scale(pk, pk);
+    ctx.fillStyle = state.countNum<=3 ? '#ff5470' : '#fde047';
+    ctx.font = fnt(900, 58*s);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(7,10,20,.7)'; ctx.lineWidth = 6*s;
+    ctx.strokeText(`${state.countNum}`, 0, 2);
+    ctx.fillText(`${state.countNum}`, 0, 2);
+    ctx.restore();
+    ctx.font = fnt(800, 14*s);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(234,242,255,.92)';
+    ctx.fillText(state.count==='p' ? '快速连按 J / K 起身！' : 'AI 正在起身…', CX, H*.34 + 88*s);
   }
 
   // 开局倒计时（3 · 2 · 1 · 开战！）
@@ -1625,77 +2100,213 @@ function drawHUD(t){
       const pop = 1 + Math.max(0, frac - .72) * 2.2;
       ctx.scale(pop, pop);
       ctx.globalAlpha = clamp(frac*4 + .3, 0, 1);
-      ctx.font = `900 ${62*s}px sans-serif`;
-      ctx.fillStyle = '#fbbf24';
+      ctx.font = fnt(900, 66*s);
+      ctx.fillStyle = '#fde047';
+      ctx.strokeStyle = 'rgba(120,53,15,.85)'; ctx.lineWidth = 7*s;
+      ctx.strokeText(n, 0, 0);
       ctx.shadowColor = 'rgba(251,191,36,.65)'; ctx.shadowBlur = 26;
       ctx.fillText(n, 0, 0);
     } else {
-      ctx.font = `900 ${40*s}px sans-serif`;
-      ctx.fillStyle = '#67e8f9';
+      ctx.font = fnt(900, 44*s);
+      ctx.fillStyle = '#7dedff';
+      ctx.strokeStyle = 'rgba(8,51,68,.9)'; ctx.lineWidth = 6*s;
+      ctx.strokeText('开战！', 0, 0);
       ctx.shadowColor = 'rgba(103,232,249,.7)'; ctx.shadowBlur = 26;
       ctx.fillText('开战！', 0, 0);
     }
     ctx.restore();
-    ctx.font = `600 ${13*s}px sans-serif`;
-    ctx.fillStyle = 'rgba(232,238,252,.8)';
-    ctx.fillText('五局三胜 · WT 得分制', CX, H*.42 + 46*s);
+    // VS 信息条
+    ctx.font = fnt(800, 13*s);
+    ctx.fillStyle = 'rgba(234,242,255,.85)';
+    ctx.fillText(`你　·VS·　${rank.name} AI`, CX, H*.42 + 52*s);
   }
+
+  // 中央提示文字（回合开始）
+  if(roundMsgT>0){
+    ctx.globalAlpha = clamp(roundMsgT, 0, 1);
+    ctx.font = fnt(900, 26*s);
+    ctx.fillStyle = '#eaf2ff';
+    ctx.strokeStyle = 'rgba(7,10,20,.7)'; ctx.lineWidth = 5*s;
+    ctx.textAlign='center';
+    ctx.strokeText(roundMsg, CX, H*.32);
+    ctx.fillText(roundMsg, CX, H*.32);
+    ctx.globalAlpha = 1;
+  }
+
+  // 大字播报（K.O.! / 时间到）
+  if(bigMsg){
+    const k = 1 - bigMsg.t / bigMsg.dur;
+    const pop = k < .15 ? .4 + ease(k/.15)*.75 : 1.15 - Math.min(.15, (k-.15))*.5;
+    ctx.save();
+    ctx.translate(CX, H*.24);
+    ctx.scale(pop, pop);
+    ctx.rotate(-.04);
+    ctx.globalAlpha = bigMsg.t < .3 ? clamp(bigMsg.t/.3, 0, 1) : 1;
+    ctx.font = `italic 900 ${64*s}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 8*s;
+    ctx.strokeStyle = 'rgba(7,10,20,.75)';
+    ctx.strokeText(bigMsg.text, 0, 0);
+    const gr = ctx.createLinearGradient(0, -40*s, 0, 24*s);
+    gr.addColorStop(0, '#ffffff');
+    gr.addColorStop(.45, bigMsg.color);
+    gr.addColorStop(1, bigMsg.color);
+    ctx.fillStyle = gr;
+    ctx.shadowColor = bigMsg.color;
+    ctx.shadowBlur = 34;
+    ctx.fillText(bigMsg.text, 0, 0);
+    ctx.restore();
+  }
+
+  // 世界层特效（飘分等，最上层）
+  for(const ft of floats){
+    const k = clamp(ft.life/ft.dur, 0, 1);
+    ctx.globalAlpha = Math.min(1, k*2.2);
+    ctx.font = fnt(900, ft.size*s);
+    ctx.textAlign='center';
+    ctx.strokeStyle = 'rgba(7,10,20,.75)'; ctx.lineWidth = 4*s;
+    ctx.strokeText(ft.text, ft.x, ft.y);
+    ctx.fillStyle = ft.color;
+    ctx.fillText(ft.text, ft.x, ft.y);
+  }
+  ctx.globalAlpha = 1;
+}
+function hh2(v, s){ return v * Math.max(.8, Math.min(s, 1.2)); }
+function drawPip(x, y, on, color){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.PI/4);
+  ctx.beginPath(); ctx.rect(-4.5, -4.5, 9, 9);
+  if(on){
+    ctx.fillStyle = color;
+    ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawScoreChip(x, y, score, color){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(8,12,26,.78)';
+  ctx.strokeStyle = 'rgba(126,156,220,.3)';
+  ctx.lineWidth = 1.2;
+  roundRect(-30, -14, 60, 28, 9);
+  ctx.fill(); ctx.stroke();
+  ctx.font = fnt(900, 17);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.fillText(`${score}`, -4, 1);
+  ctx.font = fnt(700, 8.5);
+  ctx.fillStyle = 'rgba(143,163,200,.85)';
+  ctx.textAlign = 'left';
+  ctx.fillText('WT', 12, -2);
+  ctx.fillText('得分', 12, 8);
+  ctx.restore();
 }
 
-function hpBar(x, y, w, h, f, isP){
+function hpBar(x, y, w, h, f, isP, skew){
   const pct = clamp(f.hp / f.maxHp, 0, 1);
   const disp = clamp((f.hpDisp === undefined ? f.hp : f.hpDisp) / f.maxHp, 0, 1);
+  // 斜切平行四边形（格斗游戏血条）：外侧端斜切；剩余血量贴外侧、掉血从中央侧开始
+  const barPath = () => {
+    ctx.beginPath();
+    if(isP){
+      ctx.moveTo(x + skew, y);      // 外端（左）斜切
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+    } else {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w - skew, y);  // 外端（右）斜切
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+    }
+    ctx.closePath();
+  };
+  const fillRect = (fillW) => {
+    // 填充锚定外端：玩家从左端向右、AI 从右端向左（配合裁剪自然吃掉斜角）
+    if(isP) ctx.fillRect(x - 2, y, fillW + 2, h);
+    else ctx.fillRect(x + w - fillW, y, fillW + 2, h);
+  };
   // 底槽（深色 + 描边）
-  ctx.fillStyle = 'rgba(8,12,26,.85)';
-  roundRect(x, y, w, h, h/2);
-  ctx.strokeStyle = 'rgba(147,163,199,.35)';
-  ctx.lineWidth = 1.5; ctx.stroke();
-  // 损伤延迟条（白色：缓动显示刚掉的部分）
-  if(disp > pct + .005){
-    ctx.fillStyle = 'rgba(255,255,255,.8)';
-    roundRect(x + 1.5, y + 1.5, Math.max(0, w*disp - 3), h - 3, (h-3)/2);
-  }
-  // 当前血量（渐变 + 光晕）
+  ctx.fillStyle = 'rgba(8,12,26,.82)';
+  barPath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(126,156,220,.35)';
+  ctx.lineWidth = 1.4;
+  barPath();
+  ctx.stroke();
+  // 当前血量 + 损伤延迟层（裁剪在血条形状内）
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   if(isP){ grad.addColorStop(0, '#7dedff'); grad.addColorStop(1, '#0891b2'); }
   else { grad.addColorStop(0, '#ff9db0'); grad.addColorStop(1, '#e11d48'); }
+  ctx.save();
+  barPath();
+  ctx.clip();
+  // 损伤延迟条（白色：缓动显示刚掉的部分）
+  if(disp > pct + .005){
+    ctx.fillStyle = 'rgba(255,255,255,.75)';
+    fillRect(Math.max(0, w*disp));
+  }
+  // 当前血量渐变
   ctx.fillStyle = grad;
-  roundRect(x + 1.5, y + 1.5, Math.max(0, w*pct - 3), h - 3, (h-3)/2);
-  ctx.shadowColor = isP ? '#22d3ee' : '#ff3b5c';
-  ctx.shadowBlur = 10;
-  roundRect(x + 1.5, y + 1.5, Math.max(0, w*pct - 3), h - 3, (h-3)/2);
-  ctx.shadowBlur = 0;
+  fillRect(Math.max(0, w*pct));
   // 顶部高光
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  roundRect(x + 4, y + 2.5, Math.max(0, w*pct - 8), h*.3, h*.15);
-  // 25% 刻度线
-  ctx.strokeStyle = 'rgba(7,10,20,.5)'; ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(255,255,255,.28)';
+  ctx.fillRect(x - 2, y + 2, w + 4, h*.26);
+  // 分段刻度
+  ctx.strokeStyle = 'rgba(7,10,20,.45)'; ctx.lineWidth = 1;
   for(let i=1;i<4;i++){
     ctx.beginPath(); ctx.moveTo(x + w*i/4, y + 1); ctx.lineTo(x + w*i/4, y + h - 1); ctx.stroke();
+  }
+  ctx.restore();
+  if(pct > 0){
+    ctx.save();
+    barPath();
+    ctx.shadowColor = isP ? '#22d3ee' : '#ff3b5c';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = isP ? 'rgba(125,237,255,.8)' : 'rgba(255,157,176,.8)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
 /* ---------- 主循环 ---------- */
-/* rAF 为主驱动；setInterval 兜底：rAF 暂停（如切后台）时保证游戏继续跑。
-   framePending 避免同一帧被两个驱动重复绘制（否则会造成重影） */
+/* rAF 为主驱动；setInterval 兜底：rAF 暂停（如切后台）时保证游戏继续跑。 */
 let tick = 0, framePending = false;
 function frame(ts){
-  const dt = Math.min(.033, (ts - last)/1000 || .016);
+  let dt = Math.min(.033, (ts - last)/1000 || .016);
   last = ts;
   const t = ts/1000;
+  // KO 慢动作
+  let dtSim = dt;
+  if(slowT > 0){ slowT -= dt; dtSim = dt * .35; }
   try {
-    update(dt, t);
+    update(dtSim, t);
     ctx.save();
     if(shakeT > 0){
       const k = shakeT / shakeDur;
       ctx.translate(rand(-1,1)*shakeAmp*k, rand(-1,1)*shakeAmp*k);
     }
-    drawGround();
+    drawGround(t);
     // 绘制顺序：AI 在前、玩家在后（保证视觉层次）
     if(ai.x > player.x){ drawFighter(player, t, dt); drawFighter(ai, t, dt); }
     else { drawFighter(ai, t, dt); drawFighter(player, t, dt); }
+    drawFx();
     ctx.restore();
     drawHUD(t);
+    // KO 白闪（全屏，HUD 之下）
+    if(flashA > 0){
+      ctx.fillStyle = `rgba(255,240,244,${flashA*.55})`;
+      ctx.fillRect(0, 0, W, H);
+    }
     // 结束延时后切换
     if(state.mode===STATE.over && state.overTimer>0){
       state.overTimer -= dt;
@@ -1709,7 +2320,7 @@ function loop(ts){
   if(!framePending){ framePending = true; frame(ts); framePending = false; }
   requestAnimationFrame(loop);
 }
-/* 兜底驱动：仅在 rAF 停转（后台标签页）时接管，避免与 rAF 交错造成帧间隔不均（人物抖动） */
+/* 兜底驱动：仅在 rAF 停转（后台标签页）时接管 */
 setInterval(() => {
   if(performance.now() - lastRafT < 200) return;
   if(!framePending){ framePending = true; frame(performance.now()); framePending = false; }
@@ -1721,6 +2332,7 @@ function showGame(){
   $('landing').classList.add('hidden');
   $('game').classList.remove('hidden');
   audio();  // 预创建音频上下文（用户手势）
+  initEmbers();
   startRound();
   checkOrientation();   // startRound 之后（state.mode 已是 fight）才检测竖屏
 }
