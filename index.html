@@ -357,6 +357,16 @@ document.addEventListener('keyup', e => {
   keys[k] = false;
   if(k === 'l') holdBlock(false);
 });
+/* 切窗/切后台：keyup 与 touchend 可能丢失导致按键残留（角色自己跑个不停）——全量清空 */
+window.addEventListener('blur', clearInputs);
+document.addEventListener('visibilitychange', () => { if(document.hidden) clearInputs(); });
+function clearInputs(){
+  for(const k in keys) keys[k] = false;
+  touch.left = touch.right = touch.jump = touch.kick = false;
+  kickEdge = false;
+  jumpBuf.p = 0;
+  if(player.holdBlock){ holdBlock(false); }
+}
 
 /* 触屏按钮 */
 let kickEdge = false;   // 踢钮边沿触发（按住不连发）
@@ -372,7 +382,7 @@ function placeTouch(){
   };
   b('t-left',  v => touch.left = v);
   b('t-right', v => touch.right = v);
-  b('t-kick',  v => { touch.kick = v; if(v) kickEdge = true; });
+  b('t-kick',  v => { touch.kick = v; if(v){ if(state.count !== 'p') kickEdge = true; } });
   b('t-block', v => holdBlock(v));
   b('t-jump',  v => { touch.jump = v; if(v) setJump('p'); });
 }
@@ -501,7 +511,7 @@ function tryKick(f){
 function startAxe(f){
   // 下劈（naeryo chagi）：直腿从头上方弧线劈下，主打头部（3 分）
   if(f.state==='block') f.holdBlock = false;
-  f.cast = 'axe'; f.state = 'kick'; f.stT = 0; f.cool = 1.05;
+  f.cast = 'axe'; f.castT = 0; f.state = 'kick'; f.stT = 0; f.cool = 1.05; f.phase = 0;
   f.face = f.side==='p' ? (ai.x > f.x ? 1 : -1) : (player.x > f.x ? 1 : -1);
   hitLocks.delete(f);
   sfx('kick', .35);
@@ -510,7 +520,7 @@ function startAxe(f){
 function startSide(f){
   // 侧踢（yop chagi）：翻髋折叠 → 前冲直线踹（脚跟领先）
   if(f.state==='block') f.holdBlock = false;
-  f.cast = 'side'; f.state = 'kick'; f.stT = 0; f.cool = 1.0;
+  f.cast = 'side'; f.castT = 0; f.state = 'kick'; f.stT = 0; f.cool = 1.0; f.phase = 0;
   f.face = f.side==='p' ? (ai.x > f.x ? 1 : -1) : (player.x > f.x ? 1 : -1);
   hitLocks.delete(f);
   sfx('kick', .3);
@@ -539,6 +549,7 @@ function startSpinx(f){
   f.cast = 'spinx'; f.castT = 0;          // 分阶段：0蓄力 → 1旋转 → 2踢出
   f.state = 'kick'; f.stT = 0;            // 视为踢击（得分按踢算）
   f.cyc = 0; f.spinP = 0;
+  f.phase = 0;                            // 阶段归零（连招打断后残留会跳阶段）
   f.stepBack = 40;                        // 撤步距离（先向后退半步）
   f.windup = 0;                           // 蓄力计时
   f.spinDir = f.face;                     // 旋转方向 = 朝向
@@ -781,6 +792,15 @@ function update(dt, t){
     g.comboT = Math.max(0, g.comboT - dt);
     // 血条损伤延迟（视觉缓动）
     g.hpDisp = (g.hpDisp === undefined) ? g.hp : lerp(g.hpDisp, g.hp, Math.min(1, dt*2.5));
+    // ——失控保险丝：任何路径卡死的动作状态强制恢复——
+    // cast 滞留（>2s）：旋风踢分阶段/下劈/侧踢的后备恢复（不依赖 setTimeout）
+    if(g.cast){
+      g.castT = (g.castT||0) + dt;
+      if(g.castT > 2){ g.cast=''; g.castT=0; g.phase=0; g.cyc=0; g.spinP=0; g.flyKick=false; if(g.state==='kick') g.state='idle'; }
+    } else if(g.castT){ g.castT = 0; }
+    // 单动作滞留：kick（含全部踢法，旋风踢全流程约 1.4s）/ attack 超时强制收势
+    if(g.state==='kick' && g.stT > 2.0){ g.state='idle'; g.cast=''; g.flyKick=false; g.phase=0; hitLocks.delete(g); }
+    if(g.state==='attack' && g.stT > 0.6){ g.state='idle'; }
     // 步态/呼吸幅度缓动：停止时腿摆平滑收势（相位不跳变），AI 行走同样摆腿
     const moving = Math.abs(g.vx) > 40 && g.grounded && g.kd<=0;
     if(moving){
