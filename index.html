@@ -66,8 +66,8 @@
   .qr-zone{display:flex;align-items:center;gap:16px;border:1px dashed var(--line);border-radius:14px;
     padding:14px 16px;background:rgba(34,211,238,.03);flex-wrap:wrap;}
   .qr-frame{width:132px;height:132px;flex:none;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;
-    color:#0b0e17;font-size:13px;text-align:center;padding:6px;overflow:hidden;position:relative;}
-  .qr-frame img{width:100%;height:100%;object-fit:contain;border-radius:6px;}
+    color:#0b0e17;font-size:13px;text-align:center;padding:0;overflow:hidden;position:relative;}
+  .qr-frame img{width:100%;height:100%;object-fit:cover;object-position:center;}
   .qr-placeholder{font-size:13px;color:#5a6b8c;line-height:1.6;font-weight:600;}
   .qr-item{display:flex;flex-direction:column;align-items:center;gap:6px;}
   .qr-label{font-size:11.5px;font-weight:700;color:var(--dim);white-space:nowrap;}
@@ -170,24 +170,20 @@
     <div class="qr-zone">
       <div class="qr-item">
         <div class="qr-frame">
-          <!-- 替换为抖音校园官方二维码图片：<img src="douyin-qrcode.png" alt="抖音校园官方号二维码"> -->
-          <span class="qr-placeholder">二维码<br>占位区<br>（替换图片）</span>
+          <img src="qr-douyin.jpg" alt="抖音群二维码（上海拍戏（工地）大学 WowLand）">
         </div>
-        <div class="qr-label">📱 抖音校园官方号</div>
+        <div class="qr-label">📱 抖音群 · WowLand</div>
       </div>
       <div class="qr-item">
         <div class="qr-frame">
-          <!-- 替换为跆拳道社二维码图片：<img src="tkd-qrcode.png" alt="跆拳道社二维码"> -->
-          <span class="qr-placeholder">二维码<br>占位区<br>（替换图片）</span>
+          <img src="qr-tkd.jpg" alt="跆拳道社微信群二维码（26 上理跆社招新）">
         </div>
-        <div class="qr-label">🥋 跆拳道社</div>
+        <div class="qr-label">🥋 跆拳道社微信群</div>
       </div>
       <div class="qr-side">
-        <div class="t">🤝 想加入我们？扫码关注</div>
-        <div class="d">关注 <b>抖音校园·上海理工大学官方号</b>，解锁：<br>
-        🔹 实习机会 · 内推通道　🔹 与行业前辈直接沟通<br>
-        🔹 AI 工具课程与训练营　🔹 校园活动优先参与<br>
-        🔹 也欢迎扫码加入 <b>跆拳道社</b>，一起练腿法、交朋友！</div>
+        <div class="t">🤝 扫码进群，一起玩</div>
+        <div class="d">加入 <b>抖音群（WowLand）</b>：实习机会 · 内推通道 · 与行业前辈直接沟通 · AI 工具课程与训练营优先参与<br>
+        欢迎扫码加入 <b>跆拳道社微信群</b>，一起练腿法、交朋友！</div>
       </div>
     </div>
 
@@ -230,21 +226,19 @@
     <div class="op-qr">
       <div class="qr-item">
         <div class="qr-frame">
-          <!-- 替换为抖音校园官方二维码图片：<img src="douyin-qrcode.png" alt="抖音校园官方号二维码"> -->
-          <span class="qr-placeholder">二维码<br>占位区</span>
+          <img src="qr-douyin.jpg" alt="抖音群二维码（上海拍戏（工地）大学 WowLand）">
         </div>
-        <div class="qr-label small">📱 抖音校园</div>
+        <div class="qr-label small">📱 抖音群</div>
       </div>
       <div class="qr-item">
         <div class="qr-frame">
-          <!-- 替换为跆拳道社二维码图片：<img src="tkd-qrcode.png" alt="跆拳道社二维码"> -->
-          <span class="qr-placeholder">二维码<br>占位区</span>
+          <img src="qr-tkd.jpg" alt="跆拳道社微信群二维码（26 上理跆社招新）">
         </div>
-        <div class="qr-label small">🥋 跆拳道社</div>
+        <div class="qr-label small">🥋 跆拳道社微信群</div>
       </div>
       <div>
-        <div class="t">📢 喜欢 AI 对战？扫码加入</div>
-        <div class="d">抖音校园：实习机会 · 内推 · 前辈交流 · AI 课程<br>跆拳道社：练腿法 · 交朋友 · 一起变强</div>
+        <div class="t">📢 扫码进群</div>
+        <div class="d">抖音群：实习内推 · 前辈交流 · AI 课程<br>跆拳道社微信群：练腿法 · 交朋友 · 一起变强</div>
       </div>
     </div>
   </div>
