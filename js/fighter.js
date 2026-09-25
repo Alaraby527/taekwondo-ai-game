@@ -245,8 +245,11 @@ function knockdown(t, f){
     t.vx = 0; t.targetVx = 0;
     if(state.count === t.side) state.count = null;   // 取消本次读秒
 
-    /* —— 二阶段变身：场地翻倍 + 双方重置位置 + 时间恢复 60 秒 —— */
-    setCourt(BASE_COURT * 2);
+    /* —— 二阶段：双方重置位置 + 时间恢复 60 秒 ——
+       曾经这里还把场地翻倍（COURT 300→600）。但实测那是「纯缩放」而非玩法变化：
+       踢击判定距离约 152，而移动速度/攻击距离/出界余量都没变，
+       于是多出来的场地无人使用 —— 翻倍后两人占用半径反而从 76% 掉到 34%，
+       镜头也只框住两人，玩家根本感受不到。已回退。 */
     const off = clamp(COURT * .5, 80, 150);           // 重置到开局站位（对称于场地中心）
     player.x = -off; ai.x = off;
     player.face = 1; ai.face = -1;
@@ -256,7 +259,7 @@ function knockdown(t, f){
     state.countT = 0;
 
     // —— 特效：大横幅 + 全屏白闪 + 双冲击环 + 金色爆发 + 慢动作 + 震屏 ——
-    announce('超级复活！场地扩大', 2.4, '#fbbf24');
+    announce('超级复活！', 2.4, '#fbbf24');
     flashA = 1.0; slowT = 1.2; shake(20, .9);
     burst(t, 64, '#fbbf24', 15);
     burst(t, 28, '#ffffff', 9);

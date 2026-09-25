@@ -10,7 +10,6 @@ function WIN_NEED(){ return 1; }
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
 let matchRecorded = false;    // 防止同一场对局被记录两次
 function startRound(){
-  setCourt(BASE_COURT);                 // 每局都从基准场地开始（黑带二阶段会翻倍）
   const hp = Math.round(R().hp * .7);
   player.reset(hp); ai.reset(hp);
   /* Jev 战术层的行为统计按回合清零 */
