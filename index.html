@@ -265,6 +265,13 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => 1 - Math.pow(1 - t, 3);
+const mixC = (a, b, k) => {   // '#rrggbb' 颜色插值（k=0→a, 1→b）
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const r = Math.round(((pa>>16)&255)*(1-k) + ((pb>>16)&255)*k);
+  const g = Math.round(((pa>>8)&255)*(1-k) + ((pb>>8)&255)*k);
+  const bl = Math.round((pa&255)*(1-k) + (pb&255)*k);
+  return `rgb(${r},${g},${bl})`;
+};
 
 /* ---------- 画布 ---------- */
 const cv = $('cv'), ctx = cv.getContext('2d');
@@ -281,6 +288,7 @@ function resize(){
   CX = W / 2;
   GROUND = H - Math.max(70, H * 0.10);   // 地面高度
   COURT = Math.min(W*.42, 350);          // WT 比赛区半径（出界判罚线为 COURT+42）
+  buildBg();
   placeTouch();
   if(typeof checkOrientation === 'function') checkOrientation();
 }
@@ -750,6 +758,16 @@ function update(dt, t){
     g.comboT = Math.max(0, g.comboT - dt);
     // 血条损伤延迟（视觉缓动）
     g.hpDisp = (g.hpDisp === undefined) ? g.hp : lerp(g.hpDisp, g.hp, Math.min(1, dt*2.5));
+    // 步态/呼吸幅度缓动：停止时腿摆平滑收势（相位不跳变），AI 行走同样摆腿
+    const moving = Math.abs(g.vx) > 40 && g.grounded && g.kd<=0;
+    if(moving){
+      g.stepT += dt;
+      g.swingAmp = Math.min(1, (g.swingAmp||0) + dt*7);
+    } else {
+      g.swingAmp = Math.max(0, (g.swingAmp||0) - dt*7);
+      if((g.swingAmp||0) === 0) g.stepT = 0;
+    }
+    g.bobAmp = lerp(g.bobAmp || 0, (g.state==='idle' && g.cast==='' && g.grounded && g.kd<=0) ? 1 : 0, Math.min(1, dt*6));
     // 踢击缓冲（连按→旋风踢）
     g.kickBufT -= dt;
     if(g.kickBufT <= 0) g.kickBuf = [];
@@ -824,8 +842,7 @@ function update(dt, t){
       p.cool = Math.max(p.cool, .25);
     }
     const mv = isDown('right') - isDown('left');
-    if(mv !== 0){ p.face = mv; p.vx = mv * 230; p.stepT += dt; }
-    else p.stepT = 0;
+    if(mv !== 0){ p.face = mv; p.vx = mv * 230; }
     if(kickEdge){ kickEdge = false; tryKick(player); }
     // 跳跃
     if(jumpBuf.p > 0){
@@ -961,81 +978,95 @@ function nextRank(){
 }
 
 /* ---------- 绘制 ---------- */
-function drawGround(){
-  // 整屏清底（含 GROUND 以上区域），避免上一帧残影/重影（扩边：震屏偏移时不露底）
-  ctx.clearRect(-40, -40, W + 80, H + 80);
-  ctx.fillStyle = '#0a0f1e';
-  ctx.fillRect(-40, -40, W + 80, H + 80);
+/* 背景静态层缓存：氛围/场地全部静态，只绘一次（离屏），每帧 drawImage——大幅降负载防掉帧抖动 */
+let bgCache = null;
+function buildBg(){
+  bgCache = document.createElement('canvas');
+  bgCache.width = Math.max(1, cv.width);
+  bgCache.height = Math.max(1, cv.height);
+  const c = bgCache.getContext('2d');
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  drawGroundInto(c);
+}
+function drawGroundInto(c){
+  // 整屏清底（含 GROUND 以上区域）
+  c.fillStyle = '#0a0f1e';
+  c.fillRect(0, 0, W, H);
   // —— 赛场氛围 ——
   const s3 = SCALE();
   // 顶部双锥光
   for(const lx of [CX - COURT*.55, CX + COURT*.55]){
-    const gr = ctx.createLinearGradient(0, 0, 0, GROUND);
+    const gr = c.createLinearGradient(0, 0, 0, GROUND);
     gr.addColorStop(0, 'rgba(130,175,255,.11)');
     gr.addColorStop(1, 'rgba(130,175,255,0)');
-    ctx.fillStyle = gr;
-    ctx.beginPath();
-    ctx.moveTo(lx - 26, 0); ctx.lineTo(lx + 26, 0);
-    ctx.lineTo(lx + 150, GROUND); ctx.lineTo(lx - 150, GROUND);
-    ctx.closePath(); ctx.fill();
+    c.fillStyle = gr;
+    c.beginPath();
+    c.moveTo(lx - 26, 0); c.lineTo(lx + 26, 0);
+    c.lineTo(lx + 150, GROUND); c.lineTo(lx - 150, GROUND);
+    c.closePath(); c.fill();
   }
   // 观众剪影（两排，伪随机高度，暗于背景）
-  ctx.fillStyle = 'rgba(4,7,15,.5)';
+  c.fillStyle = 'rgba(4,7,15,.5)';
   for(let i=0;i<Math.ceil(W/34)+1;i++){
     const hx = i*34 - 10;
     const hr = 11 + Math.sin(i*7.3)*3.5;
     const hy = GROUND - 118*s3 - Math.abs(Math.sin(i*3.7))*10;
-    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI*2); ctx.fill();
-    ctx.fillRect(hx - hr, hy, hr*2, 30);
+    c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI*2); c.fill();
+    c.fillRect(hx - hr, hy, hr*2, 30);
   }
-  ctx.fillStyle = 'rgba(4,7,15,.62)';
+  c.fillStyle = 'rgba(4,7,15,.62)';
   for(let i=0;i<Math.ceil(W/28)+1;i++){
     const hx = i*28 + 12;
     const hr = 13 + Math.sin(i*5.1)*3;
     const hy = GROUND - 92*s3 - Math.abs(Math.sin(i*2.9))*8;
-    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI*2); ctx.fill();
-    ctx.fillRect(hx - hr, hy, hr*2, 34);
+    c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI*2); c.fill();
+    c.fillRect(hx - hr, hy, hr*2, 34);
   }
   // 地面光带（赛场地面泛光）
-  const fl = ctx.createLinearGradient(0, GROUND - 26*s3, 0, GROUND);
+  const fl = c.createLinearGradient(0, GROUND - 26*s3, 0, GROUND);
   fl.addColorStop(0, 'rgba(34,211,238,0)');
   fl.addColorStop(1, 'rgba(34,211,238,.09)');
-  ctx.fillStyle = fl;
-  ctx.fillRect(0, GROUND - 26*s3, W, 26*s3);
+  c.fillStyle = fl;
+  c.fillRect(0, GROUND - 26*s3, W, 26*s3);
 
   // 中央场地线
-  ctx.strokeStyle = 'rgba(34,211,238,.25)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 12]);
-  ctx.beginPath(); ctx.moveTo(0, GROUND); ctx.lineTo(W, GROUND); ctx.stroke();
-  ctx.setLineDash([]);
+  c.strokeStyle = 'rgba(34,211,238,.25)';
+  c.lineWidth = 2;
+  c.setLineDash([10, 12]);
+  c.beginPath(); c.moveTo(0, GROUND); c.lineTo(W, GROUND); c.stroke();
+  c.setLineDash([]);
   // 中心圆
-  ctx.strokeStyle = 'rgba(34,211,238,.18)';
-  ctx.beginPath(); ctx.arc(CX, GROUND, 130, 0, Math.PI*2); ctx.stroke();
+  c.strokeStyle = 'rgba(34,211,238,.18)';
+  c.beginPath(); c.arc(CX, GROUND, 130, 0, Math.PI*2); c.stroke();
 
   // WT 比赛区：出界区（淡红）+ 边界警戒线（完全出界判 gam-jeom）
-  const s2 = SCALE();
-  ctx.fillStyle = 'rgba(255,59,92,.055)';
-  ctx.fillRect(0, 0, CX - COURT, H);
-  ctx.fillRect(CX + COURT, 0, W - CX - COURT, H);
-  ctx.strokeStyle = 'rgba(255,59,92,.6)';
-  ctx.lineWidth = 2.5;
+  c.fillStyle = 'rgba(255,59,92,.055)';
+  c.fillRect(0, 0, CX - COURT, H);
+  c.fillRect(CX + COURT, 0, W - CX - COURT, H);
+  c.strokeStyle = 'rgba(255,59,92,.6)';
+  c.lineWidth = 2.5;
   for(const bx of [CX - COURT, CX + COURT]){
-    ctx.beginPath();
-    ctx.moveTo(bx, GROUND + 4);
-    ctx.lineTo(bx, GROUND - 170*s2);
-    ctx.stroke();
+    c.beginPath();
+    c.moveTo(bx, GROUND + 4);
+    c.lineTo(bx, GROUND - 170*s3);
+    c.stroke();
     // 底部端点小三角（警戒标）
-    ctx.fillStyle = 'rgba(255,59,92,.6)';
-    ctx.beginPath();
-    ctx.moveTo(bx, GROUND - 4); ctx.lineTo(bx - 7, GROUND - 14); ctx.lineTo(bx + 7, GROUND - 14);
-    ctx.closePath(); ctx.fill();
+    c.fillStyle = 'rgba(255,59,92,.6)';
+    c.beginPath();
+    c.moveTo(bx, GROUND - 4); c.lineTo(bx - 7, GROUND - 14); c.lineTo(bx + 7, GROUND - 14);
+    c.closePath(); c.fill();
   }
-  ctx.font = `600 ${10*s2}px sans-serif`;
-  ctx.fillStyle = 'rgba(255,59,92,.5)';
-  ctx.textAlign = 'center';
-  ctx.fillText('出界判罚线', CX - COURT, GROUND - 178*s2);
-  ctx.fillText('出界判罚线', CX + COURT, GROUND - 178*s2);
+  c.font = `600 ${10*s3}px sans-serif`;
+  c.fillStyle = 'rgba(255,59,92,.5)';
+  c.textAlign = 'center';
+  c.fillText('出界判罚线', CX - COURT, GROUND - 178*s3);
+  c.fillText('出界判罚线', CX + COURT, GROUND - 178*s3);
+}
+
+function drawGround(){
+  // 静态背景直接贴缓存（扩边清底：震屏偏移时不露底）
+  ctx.clearRect(-40, -40, W + 80, H + 80);
+  if(bgCache) ctx.drawImage(bgCache, 0, 0, W, H);
 }
 
 function drawFighter(f, t, dt){
@@ -1046,18 +1077,18 @@ function drawFighter(f, t, dt){
   ctx.fillStyle = 'rgba(0,0,0,' + clamp(.5 - (f.y||0)/260, .12, .5) + ')';
   ctx.beginPath(); ctx.ellipse(0, (f.y||0) + 2, 26*s, 6*s, 0, 0, Math.PI*2); ctx.fill();
 
-  // 受击反馈：整体变白一瞬（标准格斗闪白——不用透明度振荡，避免人物闪烁）
-  const flashOn = f.flash > 0;
+  // 受击反馈：整体变白一瞬，尾段线性回彩（无透明度振荡，不闪烁）
   const isPlayer = f.side==='p';
+  const fw = f.flash > .08 ? 1 : f.flash / .08;   // 白闪强度 1→0
   // WT 比赛装：白道服 + 红/蓝护具（护头/护甲/拳套）
-  const gear    = flashOn ? '#ffffff' : (isPlayer ? '#38a8e0' : '#ff4d68');
-  const gearDk  = flashOn ? '#e2e8f0' : (isPlayer ? '#1e7cb0' : '#d03050');
-  const cloth   = flashOn ? '#ffffff' : '#f2f6fb';
-  const clothDk = flashOn ? '#e2e8f0' : '#cfd9e6';
-  const clothFar= flashOn ? '#eef2f7' : '#b9c4d4';   // 远端肢体（暗一档，分层感）
-  const skin    = flashOn ? '#ffffff' : '#ffd9b3';
-  const skinFar = flashOn ? '#f2f6fb' : '#eac79e';
-  const lineC   = flashOn ? '#e8edf4' : 'rgba(7,10,20,.45)';
+  const gear    = mixC(isPlayer ? '#38a8e0' : '#ff4d68', '#ffffff', fw);
+  const gearDk  = mixC(isPlayer ? '#1e7cb0' : '#d03050', '#e2e8f0', fw);
+  const cloth   = mixC('#f2f6fb', '#ffffff', fw);
+  const clothDk = mixC('#cfd9e6', '#e2e8f0', fw);
+  const clothFar= mixC('#b9c4d4', '#eef2f7', fw);   // 远端肢体（暗一档，分层感）
+  const skin    = mixC('#ffd9b3', '#ffffff', fw);
+  const skinFar = mixC('#eac79e', '#f2f6fb', fw);
+  const lineC   = mixC('#1a2230', '#e8edf4', fw);
   const colorMain = gear, colorDark = gearDk;
   const colorGlow = isPlayer ? 'rgba(56,189,248,' : 'rgba(255,59,92,';
 
@@ -1119,7 +1150,7 @@ function drawFighter(f, t, dt){
     if(f.rise>0) ctx.translate(0, -prog * 20*s);   // 读秒起身：身体抬升
   }
 
-  const bob = f.state==='idle' && f.cast==='' ? Math.sin(t*4 + f.x) * 2.2 * s : 0;
+  const bob = Math.sin(t*4 + f.x) * 2.2 * s * (f.bobAmp || 0);   // 呼吸浮动（幅度缓动）
   ctx.translate(0, bob);   // 呼吸浮动（整身）
 
   // 朝向镜像：以下身体部件统一按 face 水平翻转
@@ -1163,7 +1194,7 @@ function drawFighter(f, t, dt){
     }
     kickPose = { kneeA: spinLeg, shinA: .12 };
   }
-  const swing = Math.sin(f.stepT*8) * .35;   // 行走摆腿
+  const swing = Math.sin(f.stepT*8) * .35 * (f.swingAmp || 0);   // 行走摆腿（幅度缓动，停止平滑收势）
 
   // —— 两段式肢体绘制（描边 + 内色双层，脚底/拳套细节）——
   const drawLeg = (hx, kneeA, shinA, cIn, footC) => {
@@ -1558,11 +1589,17 @@ function frame(ts){
     }
   } catch(e){ /* 单帧异常不中断游戏 */ }
 }
+let lastRafT = 0;
 function loop(ts){
+  lastRafT = performance.now();
   if(!framePending){ framePending = true; frame(ts); framePending = false; }
   requestAnimationFrame(loop);
 }
-setInterval(() => { if(!framePending){ framePending = true; frame(performance.now()); framePending = false; } }, 60);   // 兜底驱动
+/* 兜底驱动：仅在 rAF 停转（后台标签页）时接管，避免与 rAF 交错造成帧间隔不均（人物抖动） */
+setInterval(() => {
+  if(performance.now() - lastRafT < 200) return;
+  if(!framePending){ framePending = true; frame(performance.now()); framePending = false; }
+}, 120);
 requestAnimationFrame(loop);
 
 /* ---------- 页面控制 ---------- */
