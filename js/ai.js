@@ -31,6 +31,13 @@ function aiThink(dt, t){
   const farD  = bias.keep + 60;                          // 中性时 ≈ 210（与原 200 接近）
   const nearD = Math.max(70, bias.keep - 40);            // 中性时 ≈ 110（与原一致）
 
+  /* 出界保护（对所有分支生效，包括会提前 return 的防空分支）：
+     贴边时不允许继续朝界外移动，否则会被判出界、白送对手 +1 分。
+     阈值比硬上限 (COURT+42) 提前 50 单位留缓冲。 */
+  const EDGE = COURT + 42 - 50;
+  const edgeNear = Math.abs(f.x) > EDGE - 60;
+  const guardOut = (vx) => (Math.abs(f.x) > EDGE && Math.sign(vx || 0) === Math.sign(f.x)) ? 0 : vx;
+
   /* 检测对手「刚落地」事件 —— 抓落地硬直（与飞踢 0.40s 落地恢复配合） */
   if(p._wasAir && !p.airborne && p.kd <= 0) f._punishT = 0.5;
   p._wasAir = p.airborne;
@@ -44,23 +51,36 @@ function aiThink(dt, t){
   if(f.grounded && f.state === 'idle' && f.cast === '') f.face = wantFace;
 
   /* —— 防空：对手腾空（跳踢/飞踢）——
-     这是最容易吃亏也最容易被占便宜的时刻。飞踢算头击 3 分且前冲很远，
-     所以挡下收益最大；退一步让对手落空也行。段位越高反应越准。
+     这是最容易吃亏也最容易被占便宜的时刻。按段位分两种处理：
+       · 高段位（红带/黑带）：**不后退**，趁对手起跳与滞空阶段直接对拼抢伤害。
+         对手在空中同样吃判定，所以先手出腿能「偷」到分，且不必离开边界。
+       · 中低段位：格挡为主；贴边没有后退空间时也必须改为格挡，绝不退出边界。
      （原实现把「腾空」和「倒地」混在 !grounded 一个判断里，
-       结果玩家一跳起来 AI 只会用 90 的速度慢慢后退，几乎必然被打中）*/
+       结果玩家一跳起来 AI 只会用 90 的速度慢慢后退，几乎必然被打中）
+     位置：所有 targetVx 都过 guardOut()，保证不会朝界外移动 */
   if(p.airborne){
     const closing = (f.x - p.x) * Math.sign(p.vx || (f.x - p.x)) > 0 && dist < 200;
     const react = 0.35 + skill * 0.5;
     if(closing && dist < 195){
-      if(Math.random() < react * 0.7){
+      if(skill >= 0.8){
+        /* 高段位：起跳瞬间就对拼偷伤害（不再后退） */
+        if(f.canAct() && dist < 178){
+          f.thinkT = rand(.14, .24);
+          if(Math.random() < 0.72) tryKick(f);          // 横踢迎击，判定够长
+          else startBackKick(f);                        // 旋转技：头击 3 分且带额外分
+          f.targetVx = guardOut(wantFace * 55);         // 微前压保证够得着，但不冒进出界
+        } else {
+          f.targetVx = guardOut(wantFace * 120);        // 够不着就先贴近
+        }
+      } else if(Math.random() < react * 0.7 || edgeNear){
         f.state = 'block'; f.holdBlock = true; f.cool = Math.max(f.cool, .3);
         setTimeout(() => { if(f.state==='block'){ f.state='idle'; f.holdBlock = false; } }, 400);
         f.targetVx = 0;
       } else {
-        f.targetVx = -wantFace * (250 + skill * 140);   // 后撤让飞踢落空
+        f.targetVx = guardOut(-wantFace * (200 + skill * 120));   // 后撤让飞踢落空
       }
     } else {
-      f.targetVx = -wantFace * 110;                     // 不构成威胁，稍退观察
+      f.targetVx = guardOut(-wantFace * 110);               // 不构成威胁，稍退观察
     }
     f.thinkT = Math.min(f.thinkT, 0.12);
     if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt * 12));
@@ -128,13 +148,7 @@ function aiThink(dt, t){
   }
 
   // 移动平滑：向目标速度连续趋近
-  // 出界保护：AI 贴边时绝不允许继续向外走。
-  // 否则 Jev 给的「防守/后退」战术会让 AI 把自己退出界外，每次白送对手 +1 分
-  // （实测现象：玩家挂机不动，却能靠 AI 反复出界拿到 7 分）
-  const EDGE = COURT + 42 - 50;
-  if(Math.abs(f.x) > EDGE && Math.sign(f.targetVx || 0) === Math.sign(f.x)){
-    f.targetVx = 0;
-  }
+  f.targetVx = guardOut(f.targetVx);
   if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt*10));
 }
 
