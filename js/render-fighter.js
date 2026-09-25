@@ -26,6 +26,30 @@ function drawFighter(f, t, dt){
 
   // 旋风踢：绕纵轴「连续旋转」（正面→侧面压扁→背面→回正）
   const isSpinx = f.cast==='spinx';
+  // 残影：用简化剪影代替旧的方块（旧代码是「盒状角色」时代的产物，人形化后完全对不上）
+  const ghostFig = (k, rot, dx) => {
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.translate(dx*s, 0);
+    ctx.rotate(rot);
+    ctx.fillStyle = colorGlow + '.42)';
+    // 躯干（肩宽 → 髋窄的梯形）
+    ctx.beginPath();
+    ctx.moveTo(-16*s, -98*s); ctx.lineTo(16*s, -98*s);
+    ctx.lineTo(11*s, -56*s);  ctx.lineTo(-11*s, -56*s);
+    ctx.closePath(); ctx.fill();
+    // 头
+    ctx.beginPath(); ctx.ellipse(0.6*s, -115*s, 9.6*s, 10.6*s, 0, 0, Math.PI*2); ctx.fill();
+    // 支撑腿
+    ctx.beginPath();
+    ctx.moveTo(-5*s, -56*s); ctx.lineTo(-27*s, -20*s); ctx.lineTo(-20*s, -13*s);
+    ctx.lineTo(2*s, -52*s);  ctx.closePath(); ctx.fill();
+    // 横扫腿
+    ctx.beginPath();
+    ctx.moveTo(6*s, -56*s);  ctx.lineTo(45*s, -47*s);  ctx.lineTo(47*s, -37*s);
+    ctx.lineTo(9*s, -43*s);  ctx.closePath(); ctx.fill();
+    ctx.restore();
+  };
   if(isSpinx){
     if(f.phase <= 2){
       const rotX = Math.abs(Math.cos(f.cyc * Math.PI * 2)) < .04 ? .04*Math.sign(Math.cos(f.cyc*Math.PI*2)||1) : Math.cos(f.cyc * Math.PI * 2);
@@ -34,35 +58,13 @@ function drawFighter(f, t, dt){
     if(f.phase === 1) ctx.rotate(-f.face * .18);
     if(f.phase === 2) ctx.rotate(f.face * .18);
     // 多重残影（转体轨迹）
-    ctx.save();
-    ctx.globalAlpha = .14;
-    for(let i=1;i<=4;i++){
-      ctx.save();
-      ctx.translate(-f.face*i*8*s, 0);
-      ctx.rotate(-f.cyc*0.9 - i*.55);
-      ctx.fillStyle = colorGlow + '.35)';
-      roundRect(-10*s, -96*s, 20*s, 96*s, 9*s);
-      ctx.beginPath(); ctx.arc(0, -108*s, 12*s, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
+    for(let i=4;i>=1;i--) ghostFig(.14, -f.cyc*0.9 - i*.55, -f.face*i*8);
   }
 
   // 后踢：转身残影
   if(f.cast==='back'){
     const bp = clamp(f.stT/.14, 0, 1);
-    ctx.save();
-    ctx.globalAlpha = .14;
-    for(let i=1;i<=2;i++){
-      ctx.save();
-      ctx.translate(-f.face*i*5*s, 0);
-      ctx.rotate(f.face*.3*bp - i*.4);
-      ctx.fillStyle = colorGlow + '.35)';
-      roundRect(-10*s, -96*s, 20*s, 96*s, 9*s);
-      ctx.beginPath(); ctx.arc(0, -108*s, 12*s, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
+    for(let i=2;i>=1;i--) ghostFig(.14, f.face*.3*bp - i*.4, -f.face*i*5);
   }
 
   // 倒地/读秒：身体倒下，读秒时随 rise 缓慢半起身
