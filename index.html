@@ -1125,10 +1125,9 @@ function drawFighter(f, t, dt){
     ctx.restore();
   }
 
-  // 后踢（dwit chagi）：身体前倾 + 转身残影，表达转身蹬击发力
+  // 后踢（dwit chagi）：转身残影（前倾发力由 kickPose.lean 驱动）
   if(f.cast==='back'){
     const bp = clamp(f.stT/.14, 0, 1);
-    ctx.rotate(f.face * .28 * bp);
     ctx.save();
     ctx.globalAlpha = .13;
     for(let i=1;i<=2;i++){
@@ -1161,21 +1160,23 @@ function drawFighter(f, t, dt){
   // —— 人体比例（脚底 y=0 贴地，向上为负）——
   const hipY = -46*s, shY = -84*s;           // 髋部 / 肩部
   const headR = 11.5*s, headY = -98*s;       // 头
-  // 踢腿姿态：横踢为两段式（大腿+小腿）——提膝 → 转髋弹腿 → 收腿（WT 主力技术）
+  // 踢腿姿态：横踢按 WT 标准五阶段（重心上移 → 侧向高提膝 → 支撑脚 pivot → 弧线弹腿 → 收腿）
+  // 上身向远离目标侧倾斜（trunk lean：加踢距 + 平衡，横踢标志性形态）
   // 飞踢：空中前伸直腿；后踢：转身蹬腿（前倾 + 腿蹬直）
-  let kickPose = null;   // { kneeA, shinA }：大腿角 / 小腿相对角
+  let kickPose = null;   // { kneeA, shinA, lean }：大腿角 / 小腿相对角 / 躯干倾斜
   if(f.state==='kick' && !isSpinx){
     if(f.flyKick){
-      kickPose = { kneeA: -1.15, shinA: -.35 };           // 飞踢：腿前伸
+      kickPose = { kneeA: -1.15, shinA: -.35, lean: -.1 };     // 飞踢：腿前伸
     } else if(f.cast==='back'){
-      kickPose = { kneeA: -1.35, shinA: -.05 };           // 后踢：腿蹬直指向对手
+      kickPose = { kneeA: -1.35, shinA: -.05, lean: .24 };     // 后踢：腿蹬直 + 上身前倾发力
     } else {
-      const p1 = clamp(f.stT/.16, 0, 1);                  // 提膝（0-0.16s）
-      const p2 = clamp((f.stT-.16)/.09, 0, 1);            // 转髋弹腿（0.16-0.25s，快速弹击）
-      const p3 = clamp((f.stT-.25)/.25, 0, 1);            // 收腿落地
-      const kneeA = -1.5*p1 + .55*p3;                     // 大腿：抬起 → 回落
-      const shinA = 1.9*p1 - 2.05*p2 + .55*p3;            // 小腿：折叠 → 弹直 → 收回
-      kickPose = { kneeA, shinA };
+      const p1 = clamp(f.stT/.16, 0, 1);                  // 侧向高提膝（膝盖到胸腹高度）
+      const p2 = clamp((f.stT-.16)/.09, 0, 1);            // 转髋弹腿（小腿沿弧线弹出）
+      const p3 = clamp((f.stT-.25)/.25, 0, 1);            // 快速收腿回架
+      const kneeA = -1.85*p1 + .62*p3;                    // 提膝更高（大腿接近水平上翘）
+      const shinA = 2.35*p1 - 2.5*p2 + .55*p3;            // 小腿：紧贴大腿折叠 → 弧线弹直 → 收
+      const lean  = -.24*p1 + .2*p3;                      // 上身向远离目标侧倾斜
+      kickPose = { kneeA, shinA, lean };
     }
   }
   // 旋风踢：后腿画弧横扫（前旋踢）—— 从后收腿 → 绕轴横扫到前
@@ -1192,73 +1193,88 @@ function drawFighter(f, t, dt){
       // 收势：腿回落
       spinLeg = 1.35 - clamp(f.stT, 0, .3) * 4;
     }
-    kickPose = { kneeA: spinLeg, shinA: .12 };
+    kickPose = { kneeA: spinLeg, shinA: .12, lean: -.18 };
   }
   const swing = Math.sin(f.stepT*8) * .35 * (f.swingAmp || 0);   // 行走摆腿（幅度缓动，停止平滑收势）
 
-  // —— 两段式肢体绘制（描边 + 内色双层，脚底/拳套细节）——
+  // —— 体积化肢体：锥形胶囊（根粗末细）+ 关节球，告别火柴线条 ——
+  const capsule = (x1, y1, x2, y2, w1, w2, cIn) => {
+    const a = Math.atan2(y2 - y1, x2 - x1);
+    const nx = Math.cos(a + Math.PI/2), ny = Math.sin(a + Math.PI/2);
+    for(const pass of [0, 1]){        // 0=描边层 1=内色层
+      const o = pass ? 0 : 2.1*s;
+      ctx.beginPath();
+      ctx.moveTo(x1 + nx*(w1/2 + o), y1 + ny*(w1/2 + o));
+      ctx.lineTo(x2 + nx*(w2/2 + o), y2 + ny*(w2/2 + o));
+      ctx.arc(x2, y2, w2/2 + o, a + Math.PI/2, a - Math.PI/2, true);
+      ctx.lineTo(x1 - nx*(w1/2 + o), y1 - ny*(w1/2 + o));
+      ctx.arc(x1, y1, w1/2 + o, a - Math.PI/2, a + Math.PI/2, true);
+      ctx.closePath();
+      ctx.fillStyle = pass ? cIn : lineC;
+      ctx.fill();
+    }
+  };
   const drawLeg = (hx, kneeA, shinA, cIn, footC) => {
-    ctx.save(); ctx.translate(hx*s, hipY); ctx.rotate(kneeA);
-    ctx.lineCap='round';
-    ctx.strokeStyle = lineC; ctx.lineWidth = 10.5*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 21*s); ctx.stroke();
-    ctx.strokeStyle = cIn; ctx.lineWidth = 7.2*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 21*s); ctx.stroke();
-    ctx.translate(0, 21*s); ctx.rotate(shinA);
-    ctx.strokeStyle = lineC; ctx.lineWidth = 9.2*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 19*s); ctx.stroke();
-    ctx.strokeStyle = cIn; ctx.lineWidth = 6.4*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 19*s); ctx.stroke();
+    const kx = hx*s - Math.sin(kneeA)*21*s, ky = hipY + Math.cos(kneeA)*21*s;
+    const fa = kneeA + shinA;
+    const fx2 = kx - Math.sin(fa)*19*s, fy2 = ky + Math.cos(fa)*19*s;
+    capsule(hx*s, hipY, kx, ky, 11.5*s, 8.5*s, cIn);   // 大腿（道裤，锥形）
+    capsule(kx, ky, fx2, fy2, 9*s, 5.6*s, cIn);        // 小腿
+    // 膝关节球
+    ctx.beginPath(); ctx.arc(kx, ky, 3*s, 0, Math.PI*2);
+    ctx.fillStyle = cIn; ctx.fill();
+    ctx.strokeStyle = lineC; ctx.lineWidth = 1.2*s; ctx.stroke();
     // 赤足（脚尖朝前）
-    ctx.translate(0, 19*s);
-    ctx.fillStyle = footC;
-    ctx.beginPath(); ctx.ellipse(2.5*s, 1.2*s, 5.2*s, 2.8*s, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(fx2 + 2.5*s, fy2 + 1.2*s, 5.4*s, 2.8*s, 0, 0, Math.PI*2);
+    ctx.fillStyle = footC; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
-    ctx.restore();
   };
   const drawArm = (sx, upperA, foreA, cIn, fist) => {
-    ctx.save(); ctx.translate(sx*s, shY + 3*s); ctx.rotate(upperA);
-    ctx.lineCap='round';
-    ctx.strokeStyle = lineC; ctx.lineWidth = 8.4*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 11*s); ctx.stroke();
-    ctx.strokeStyle = cIn; ctx.lineWidth = 5.6*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 11*s); ctx.stroke();
-    ctx.translate(0, 11*s); ctx.rotate(foreA - upperA);
-    ctx.strokeStyle = lineC; ctx.lineWidth = 7.4*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 12*s); ctx.stroke();
-    ctx.strokeStyle = cIn; ctx.lineWidth = 5*s;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 12*s); ctx.stroke();
+    const ex = sx*s - Math.sin(upperA)*11*s, ey = shY + 3*s + Math.cos(upperA)*11*s;
+    const fx2 = ex - Math.sin(foreA)*12*s, fy2 = ey + Math.cos(foreA)*12*s;
+    capsule(sx*s, shY + 3*s, ex, ey, 8.5*s, 6*s, cIn);   // 上臂
+    capsule(ex, ey, fx2, fy2, 6.8*s, 4.6*s, cIn);        // 前臂
+    // 肘关节球
+    ctx.beginPath(); ctx.arc(ex, ey, 2.4*s, 0, Math.PI*2);
+    ctx.fillStyle = cIn; ctx.fill();
+    ctx.strokeStyle = lineC; ctx.lineWidth = 1.1*s; ctx.stroke();
     // 拳套（护手）
-    ctx.translate(0, 12*s);
-    ctx.fillStyle = fist;
-    ctx.beginPath(); ctx.arc(0, 0, 4.2*s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(fx2, fy2, 4.4*s, 0, Math.PI*2);
+    ctx.fillStyle = fist; ctx.fill();
     ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
-    ctx.restore();
   };
 
-  // —— 手臂姿态（跆拳道实战架：双拳护脸）——
+  // —— 手臂姿态（跆拳道实战架：肘内收、双拳护脸；踢击时摆臂平衡）——
   let backArm, frontArm;
   if(isSpinx){
     backArm = { u: 0.9, f: -2.1 };
     const armA = f.phase===0 ? 1.1 : (f.phase>=2 ? -0.4 : 1.6);
     frontArm = { u: armA, f: -1.9 };
   } else if(f.state==='block'){
-    backArm = { u: 0.5, f: -2.6 };                 // 双前臂横挡胸前
-    frontArm = { u: -0.5, f: -2.75 };
+    backArm = { u: 0.4, f: -2.7 };                 // 双前臂横挡胸前，肘夹紧
+    frontArm = { u: -0.35, f: -2.85 };
   } else if(f.state==='attack'){
     const punch = f.stT >= .12;
     frontArm = punch ? { u: -1.3, f: -1.35 } : { u: -0.5, f: -2.6 };   // 收拳 → 冲拳打直
-    backArm = { u: 0.55, f: -2.5 };
+    backArm = { u: 0.45, f: -2.75 };
+  } else if(f.state==='kick'){
+    backArm = { u: 0.35, f: -2.8 };                // 踢击：后手保持护脸
+    frontArm = { u: 0.55, f: -2.0 };               // 前臂向后摆（配平躯干倾斜）
   } else {
-    backArm = { u: 0.55 + swing*.15, f: -2.5 };    // 行走时架势微摆
-    frontArm = { u: -0.12 + swing*.12, f: -2.4 };
+    backArm = { u: 0.45 + swing*.15, f: -2.75 };   // 后手贴下巴侧
+    frontArm = { u: -0.05 + swing*.12, f: -2.2 };  // 前手略低在前（WT 守势）
   }
 
-  // —— 绘制（远端肢体 → 躯干 → 近端肢体，分层）——
+  // —— 绘制（踢击躯干倾斜 → 远端肢体 → 躯干 → 近端肢体，分层）——
+  // 横踢标志形态：上身绕髋向远离目标侧仰（加踢距 + 平衡）
+  if(kickPose && kickPose.lean){
+    ctx.translate(0, hipY); ctx.rotate(kickPose.lean); ctx.translate(0, -hipY);
+  }
   // 远端臂（后臂）
   drawArm(-4.5, backArm.u, backArm.f, clothFar, gearDk);
-  // 远端腿（后腿：微屈膝支撑）
-  drawLeg(-4, 0.30 - swing*.5, -0.52 + swing*.2, clothFar, skinFar);
+  // 远端腿（后腿：大开立 + 微屈膝；踢击时支撑腿直立、重心升高）
+  const support = kickPose ? 1 : 0;
+  drawLeg(-6, 0.30 - support*.18 - swing*.5, -0.52 + support*.35 + swing*.2, clothFar, skinFar);
 
   // 躯干（白道服）+ V 领
   ctx.fillStyle = cloth;
@@ -1283,9 +1299,12 @@ function drawFighter(f, t, dt){
   ctx.strokeStyle = lineC; ctx.lineWidth = 1*s;
   ctx.strokeRect(-11*s, hipY - 3*s, 22*s, 4.5*s);
 
-  // 近端腿（前腿：踢击/stance）
+  // 近端腿（前腿：踢击/stance，大开立）
   if(kickPose) drawLeg(4, kickPose.kneeA, kickPose.shinA, cloth, skin);
-  else drawLeg(4, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin);
+  else drawLeg(5, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin);
+
+  // 脖子（衔接头与躯干）
+  capsule(0, shY + 4*s, 0, headY + headR - 2*s, 6.5*s, 5.5*s, skinFar);
 
   // 头（肤色）+ 护头（主色，前脸大开口）+ 眼（白底 + 瞳）
   ctx.beginPath(); ctx.arc(0, headY, headR, 0, Math.PI*2);
