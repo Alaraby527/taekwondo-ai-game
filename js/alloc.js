@@ -6,23 +6,25 @@
 
    设计意图：让第一阶段的发挥真正影响决战难度 —— 打得好，手里就有底牌。 */
 
-const ALLOC_PTS_PER = 5;      // 每 5 分 = 1 个大分
+const ALLOC_PTS_PER = 5;      // 每 5 分 = 1 张底牌
 
-/* 增益表。每个消耗 1 个大分，可重复选取（点数多于选项数时不浪费）。 */
+/* 底牌表。cost 为所需底牌数；可重复选取（点数多于选项数时不浪费）。 */
 const ALLOC_BUFFS = [
-  { id:'hp',   name:'铁壁', desc:'血量上限 +30%（立即回满）',
+  { id:'hp',    name:'铁壁', desc:'血量上限 +30%（立即回满）', cost:1,
     apply(p){ p.maxHp = Math.round(p.maxHp * 1.3); p.hp = p.maxHp; p.hpDisp = p.maxHp; } },
-  { id:'dmg',  name:'重击', desc:'造成的伤害 +25%',
+  { id:'dmg',   name:'重击', desc:'造成的伤害 +25%', cost:1,
     apply(p){ p.dmgMul = (p.dmgMul || 1) * 1.25; } },
-  { id:'life', name:'不倒', desc:'额外获得一次倒地机会',
+  { id:'life',  name:'不倒', desc:'额外获得一次倒地机会', cost:1,
     apply(p){ p.kdLimit += 1; } },
-  { id:'rise', name:'坚韧', desc:'起身更快（起身耗时 −40%）',
+  { id:'rise',  name:'坚韧', desc:'起身更快（起身耗时 −40%）', cost:1,
     apply(p){ p.riseMul = (p.riseMul || 1) * 0.6; } },
+  { id:'fly',   name:'飞踢无僵直', desc:'飞踢落地不再有收招硬直，落地即可续招', cost:2,
+    apply(p){ p.flyKickFree = true; } },
 ];
 
 const ALLOC = { pts:0, left:0, taken:{} };
 
-/* 可分配的大分（按当前回合得分折算） */
+/* 可分配的底牌数（按当前回合得分折算） */
 function allocPoints(){ return Math.floor(Math.max(0, scoreP) / ALLOC_PTS_PER); }
 
 function openAlloc(){
@@ -30,6 +32,11 @@ function openAlloc(){
   ALLOC.left = ALLOC.pts;
   ALLOC.taken = {};
   state.alloc = true;                     // 冻结模拟（update() 会提前返回）
+  // 致命一击遗留的震屏/白闪/慢动作也必须暂停：frame() 在冻结期间仍会
+  // 调用 updateCam() 和绘制世界层，否则面板会跟着随机震屏持续抖动。
+  shakeT = 0; shakeAmp = 0;
+  CAM.shakeX = 0; CAM.shakeY = 0;
+  flashA = 0; slowT = 0;
   clearInputs();                          // 丢掉冻结瞬间可能按住的键，避免残留
   const k = $('allocKicker');
   if(k) k.textContent = 'SUPER REVIVAL · 最终决战准备';
@@ -44,11 +51,13 @@ function renderAlloc(){
   list.innerHTML = '';
   for(const b of ALLOC_BUFFS){
     const n = ALLOC.taken[b.id] || 0;
+    const cost = b.cost || 1;
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'alloc-card';
-    el.disabled = ALLOC.left <= 0;
-    el.innerHTML = '<b>' + b.name + (n ? ' ×' + n : '') + '</b><span>' + b.desc + '</span>';
+    el.disabled = ALLOC.left < cost || (b.id === 'fly' && n > 0);
+    el.innerHTML = '<b>' + b.name + (n ? ' ×' + n : '') +
+                   '<i class="alloc-cost">' + cost + ' 底牌</i></b><span>' + b.desc + '</span>';
     el.addEventListener('click', () => spendBuff(b));
     list.appendChild(el);
   }
@@ -56,8 +65,9 @@ function renderAlloc(){
 }
 
 function spendBuff(b){
-  if(ALLOC.left <= 0) return;
-  ALLOC.left--;
+  const cost = b.cost || 1;
+  if(ALLOC.left < cost) return;
+  ALLOC.left -= cost;
   ALLOC.taken[b.id] = (ALLOC.taken[b.id] || 0) + 1;
   b.apply(player);
   sfx('tick', .4);
@@ -81,9 +91,10 @@ function closeAlloc(){
   sfx('bell', .5);
 }
 
-/* 每局重置增益（血量/kdLimit 由 Fighter.reset 负责，这里只清倍率） */
+/* 每局重置底牌增益（血量/kdLimit 由 Fighter.reset 负责，这里清倍率与开关） */
 function resetAlloc(){
   player.dmgMul = 1;
   player.riseMul = 1;
+  player.flyKickFree = false;
   ALLOC.pts = 0; ALLOC.left = 0; ALLOC.taken = {};
 }

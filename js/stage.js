@@ -79,10 +79,12 @@ function resize(){
   buildBg();
   placeTouch();
   if(typeof checkOrientation === 'function') checkOrientation();
+  if(typeof refreshPanelOrientation === 'function') refreshPanelOrientation();
 }
 
 /* 相机每帧推进：取景 = 双方 + 边距 */
 function updateCam(dt){
+  if(state.alloc){ CAM.shakeX = 0; CAM.shakeY = 0; return; }
   /* 调试/取景用：window.__camOverride = {x, y, z} 可锁定相机 */
   if(window.__camOverride){
     CAM.x = CAM.tx = window.__camOverride.x || 0;
@@ -134,4 +136,3 @@ function updateCam(dt){
   else CAM.koZoom = Math.max(0, CAM.koZoom - dt * 1.2);
 }
 window.addEventListener('resize', resize);
-

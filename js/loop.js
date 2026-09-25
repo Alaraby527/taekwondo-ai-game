@@ -40,6 +40,8 @@ function frame(ts){
     ctx.restore();
     // ④ HUD（游戏区顶部，屏幕空间）
     drawHUD(t);
+    // ⑤ 右侧实时决策面板（DOM，10Hz 节流）
+    if(typeof tickPanel === 'function') tickPanel();
     // KO 白闪（游戏区内，HUD 之下）
     if(flashA > 0){
       ctx.fillStyle = `rgba(255,240,244,${flashA*.55})`;

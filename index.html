@@ -229,9 +229,36 @@
     font-family:inherit;cursor:pointer;transition:transform .12s, background .12s;}
   .alloc-card:hover:not(:disabled){background:rgba(255,255,255,.09);transform:translateY(-1px);}
   .alloc-card:disabled{opacity:.35;cursor:default;}
-  .alloc-card b{font-size:14px;letter-spacing:1px;color:var(--gold);}
+  .alloc-card b{font-size:14px;letter-spacing:1px;color:var(--gold);display:flex;align-items:baseline;gap:6px;}
+  .alloc-cost{margin-left:auto;font-style:normal;font-size:9.5px;font-weight:600;letter-spacing:0;
+    color:var(--dim-deep);border:1px solid var(--line-strong);border-radius:5px;padding:1px 4px;}
   .alloc-card span{font-size:11.5px;color:var(--dim);line-height:1.5;}
   .alloc-rate{color:var(--dim-deep);font-size:11px;}
+
+  /* ---------- 右侧「实时决策」面板 ---------- */
+  .dp{position:absolute;right:12px;top:138px;z-index:8;
+    width:186px;padding:10px 11px;border-radius:14px;display:none;flex-direction:column;gap:8px;
+    border:1px solid var(--line-strong);background:linear-gradient(160deg,rgba(21,30,54,.78),rgba(11,16,30,.84));
+    backdrop-filter:blur(8px);font-size:11px;pointer-events:none;}
+  .dp.show{display:flex;}
+  .dp-h{font-size:10px;letter-spacing:3px;color:var(--dim-deep);}
+  .dp-sec{display:flex;flex-direction:column;gap:4px;padding-top:7px;border-top:1px solid var(--line);}
+  .dp-who{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--cyan);}
+  .dp-who.ai{color:var(--red);}
+  .dp-row{display:flex;align-items:baseline;gap:6px;}
+  .dp-row>span{color:var(--dim-deep);min-width:52px;font-size:10px;}
+  .dp-row>b{color:var(--text);font-size:11.5px;font-weight:800;}
+  .dp-row>em{margin-left:auto;font-style:normal;font-size:9.5px;color:var(--gold);opacity:.85;}
+  .dp-bar{position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .dp-bar>i{display:block;height:100%;width:0;border-radius:3px;
+    background:linear-gradient(90deg,#22d3ee,#fbbf24);transition:width .25s;}
+  .dp-bar>span{position:absolute;right:4px;top:-13px;font-size:9.5px;color:var(--dim);}
+  .dp-toggle{position:absolute;right:12px;top:108px;z-index:9;border-radius:6px;padding:5px 9px;
+    border:1px solid var(--line-strong);background:rgba(255,255,255,.05);color:var(--dim);
+    font-family:inherit;font-size:11px;line-height:1;cursor:pointer;}
+  .dp-toggle:hover{background:rgba(255,255,255,.12);color:var(--text);}
+  .dp.portrait{width:150px;font-size:10px;right:8px;}
+  .dp.portrait .dp-row>span{min-width:44px;}
   .promo{display:none;align-items:center;justify-content:center;gap:12px;margin:2px 0;
     border:1px solid rgba(251,191,36,.4);border-radius:14px;padding:12px 14px;
     background:linear-gradient(90deg,rgba(251,191,36,.10),rgba(251,191,36,.04));
@@ -431,12 +458,33 @@
   </div>
 
   <!-- 结束面板 -->
+  <div class="dp" id="dp">
+    <div class="dp-h">实时决策</div>
+    <div class="dp-sec">
+      <div class="dp-who">你 · 挑战者</div>
+      <div class="dp-row"><span>动作</span><b id="dpPAction">—</b></div>
+      <div class="dp-row"><span>最近技能</span><b id="dpPRecent">—</b></div>
+      <div class="dp-row"><span>连击</span><b id="dpPCombo">—</b></div>
+      <div class="dp-row"><span>血量</span><b id="dpPHP">—</b></div>
+    </div>
+    <div class="dp-sec">
+      <div class="dp-who ai">AI · <span id="dpARank">白带 AI</span></div>
+      <div class="dp-row"><span>动作</span><b id="dpAAction">—</b></div>
+      <div class="dp-row"><span>最近技能</span><b id="dpARecent">—</b></div>
+      <div class="dp-row"><span>血量</span><b id="dpAHP">—</b></div>
+      <div class="dp-row"><span>战术</span><b id="dpTactic">—</b><em id="dpSrc"></em></div>
+      <div class="dp-bar"><i id="dpProb"></i><span id="dpProbTxt">—</span></div>
+      <div class="dp-row"><span>预判出腿</span><b id="dpPredict">—</b></div>
+    </div>
+  </div>
+  <button class="dp-toggle" id="dpToggle" type="button" aria-controls="dp" aria-expanded="false">查看决策</button>
+
   <div class="overlay-panel" id="allocPanel">
     <div class="op-kicker" id="allocKicker">FINAL BATTLE · 决战准备</div>
     <div class="op-title win">选择增益</div>
     <div class="op-sub">
-      黑带阶段拿下 <b id="allocScore">0</b> 分 → 可分配 <b id="allocPts">0</b> 个大分
-      <span class="alloc-rate">（每 5 分 = 1 个大分）</span>
+      黑带阶段拿下 <b id="allocScore">0</b> 分 → 可分配 <b id="allocPts">0</b> 张底牌
+      <span class="alloc-rate">（每 5 分 = 1 张底牌）</span>
     </div>
     <div class="alloc-list" id="allocList"></div>
     <div class="btn-row">
@@ -491,6 +539,7 @@
 <script src="js/track.js"></script>
 <script src="js/persist.js"></script>
 <script src="js/alloc.js"></script>
+<script src="js/panel.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/update.js"></script>
 <script src="js/round.js"></script>

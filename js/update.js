@@ -110,16 +110,27 @@ function update(dt, t){
       if(g.y <= 0){
         g.y = 0; g.airborne = false; g.jumpV = 0; g.jumpH = 0;
         sfx('punch', .12);
-        if(g.state==='kick' && g.flyKick){
-          g.flyKick = false; g.state='idle';
+        const landedFlyKick = g.flyKick;
+        if(landedFlyKick){
+          g.flyKick = false;
+          if(g.state==='kick') g.state='idle';
           /* 飞踢落地硬直 —— 这里正是它「赖皮」的根源：
              原来只有 0.08s，而 1.1s 冷却在约 1s 的滞空里已经走完，
-             落地即可再起跳，对手几乎无法惩罚。现在给一段真实的收招后可被反击的窗口。 */
-          g.freeze = Math.max(g.freeze, .40);
-          g.cool   = Math.max(g.cool, .55);
+             落地即可再起跳，对手几乎无法惩罚。现在给一段真实的收招后可被反击的窗口。
+             底牌「飞踢无僵直」可以免掉这段硬直（flyKickFree）。 */
+          if(g.flyKickFree){
+            // 底牌只免飞踢落地后摇；滞空未耗完的冷却和连按缓存也要清掉，
+            // 否则看似站稳却不能出招，或下一次踢误触发下劈。
+            g.cool = 0;
+            g.kickBuf = []; g.kickBufT = 0;
+            g.freeze = 0;
+          } else {
+            g.freeze = Math.max(g.freeze, .40);
+            g.cool   = Math.max(g.cool, .55);
+          }
         }
         if(g.cast==='spinx'){ g.cast=''; g.castT=0; }
-        g.freeze = Math.max(g.freeze, .08);
+        if(!landedFlyKick || !g.flyKickFree) g.freeze = Math.max(g.freeze, .08);
       }
     }
     g.x += g.vx * dt;
@@ -318,4 +329,3 @@ function update(dt, t){
   /* Jev 战术层：到点就异步问一次（单次在途，不阻塞主循环） */
   if(typeof jevTick === 'function') jevTick(t);
 }
-

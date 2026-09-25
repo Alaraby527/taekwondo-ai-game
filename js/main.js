@@ -63,4 +63,5 @@ document.addEventListener('touchmove', e => e.preventDefault(), {passive:false})
 
 initLanding();
 resize();
+initPanel();
 requestAnimationFrame(loop);
