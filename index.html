@@ -158,7 +158,7 @@
 
     <div class="howto">
       <span class="k">🖥 键盘：<span class="keycap">A/D</span> 移动 · <span class="keycap">W</span>/<span class="keycap">Space</span> 跳 · <span class="keycap">J</span> 拳 · <span class="keycap">K</span> 踢 · <span class="keycap">L</span> 挡</span>
-      <span class="k">🌀 炫技：空中踢=飞踢 · 连按 <span class="keycap">K</span>=旋风踢(撤步转体360°横扫) · 连续命中=连招加伤</span>
+      <span class="k">🌀 炫技：连点 <span class="keycap">K</span>=下劈→旋风踢 · 前进+<span class="keycap">K</span>=侧踢 · 后退+<span class="keycap">K</span>=后踢 · 空中踢=飞踢 · 连续命中=连招加伤</span>
       <span class="k">🥊 WT 计分：拳1 · 踢2 · 踢头3 · 旋转踢+1 · 击倒后 8 秒读秒，狂按 <span class="keycap">J/K</span> 起身</span>
       <span class="k">📱 触屏：左右键移动 · 踢/挡/跳按钮，<b>连点踢=旋风踢</b> · 按住反方向+踢=后踢</span>
     </div>
@@ -465,32 +465,56 @@ function tryPunch(f){
   setTimeout(() => { if(f.state==='attack') f.state='idle'; }, 340);
 }
 function tryKick(f){
-  // 连按踢：0.5s 内再次按 K → 旋风踢（可打断普通踢，无视冷却）
+  // 连按踢序列（0.5s 窗口）：第 1 下=横踢 → 第 2 下=下劈 → 第 3 下=旋风踢（实战连招，可打断当前踢）
   const now = performance.now()/1000;
   if(f.kickBuf.length>0 && now - f.kickBuf[f.kickBuf.length-1] < .5){
-    f.kickBuf = []; f.kickBufT = 0;
+    f.kickBuf.push(now); f.kickBufT = .5;
+    const n = f.kickBuf.length;
     if(f.state==='kick' || f.canAct()){
-      startSpinx(f);
+      if(n >= 3){ f.kickBuf = []; f.kickBufT = 0; startSpinx(f); }
+      else startAxe(f);
     }
     return;
   }
   if(!f.canAct() || f.cool>0) return;
   // 空中出腿 → 飞踢（前冲）
   if(f.airborne){ startFlyingKick(f); return; }
-  // 后退中按踢 → 后踢（dwit chagi：转身后蹬，WT 旋转技术 3 分，经典反击技）
   if(f.side==='p'){
     const toward = ai.x > f.x ? 1 : -1;
+    // 后退中按踢 → 后踢（dwit chagi：转身后蹬，旋转技 3 分）
     if((toward===1 && isDown('left')) || (toward===-1 && isDown('right'))){
       startBackKick(f); return;
     }
+    // 前进中按踢 → 侧踢（yop chagi：前冲直线踹）
+    if((toward===1 && isDown('right')) || (toward===-1 && isDown('left'))){
+      startSide(f); return;
+    }
   }
-  // 横踢（dollyo chagi）：比赛主力技术（约 60-80% 出招），提膝→转髋弹腿
+  // 横踢（dollyo chagi）：比赛主力技术（弧线横扫），提膝→转髋弧线弹腿
   f.kickBuf.push(now);
   f.kickBufT = .5;
   if(f.state==='block') f.holdBlock = false;
   f.state = 'kick'; f.stT = 0; f.anim = 1.6; f.cool = 0.85;
   sfx('kick', .3);
-  setTimeout(() => { if(f.state==='kick' && f.cast!=='spinx' && f.cast!=='back') f.state='idle'; }, 500);
+  setTimeout(() => { if(f.state==='kick' && !['spinx','back','axe','side'].includes(f.cast)) f.state='idle'; }, 500);
+}
+function startAxe(f){
+  // 下劈（naeryo chagi）：直腿从头上方弧线劈下，主打头部（3 分）
+  if(f.state==='block') f.holdBlock = false;
+  f.cast = 'axe'; f.state = 'kick'; f.stT = 0; f.cool = 1.05;
+  f.face = f.side==='p' ? (ai.x > f.x ? 1 : -1) : (player.x > f.x ? 1 : -1);
+  hitLocks.delete(f);
+  sfx('kick', .35);
+  setTimeout(() => { if(f.cast==='axe'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, 720);
+}
+function startSide(f){
+  // 侧踢（yop chagi）：翻髋折叠 → 前冲直线踹（脚跟领先）
+  if(f.state==='block') f.holdBlock = false;
+  f.cast = 'side'; f.state = 'kick'; f.stT = 0; f.cool = 1.0;
+  f.face = f.side==='p' ? (ai.x > f.x ? 1 : -1) : (player.x > f.x ? 1 : -1);
+  hitLocks.delete(f);
+  sfx('kick', .3);
+  setTimeout(() => { if(f.cast==='side'){ f.cast=''; if(f.state==='kick') f.state='idle'; } }, 640);
 }
 function startBackKick(f){
   // 后踢（dwit chagi）：转身背对瞬间以脚跟蹬击躯干——旋转技术，3 分
@@ -531,7 +555,7 @@ function tryBlock(f, dur=0.5){
 
 /* 检测攻击命中：f 攻击方，t 防守方 */
 function resolveHit(f, t){
-  const r = f.cast==='spinx' ? 130 : (f.cast==='back' ? 96 : (f.state==='kick' ? 100 : 70));
+  const r = f.cast==='spinx' ? 130 : (f.cast==='back' ? 96 : (f.cast==='side' ? 105 : (f.cast==='axe' ? 88 : (f.state==='kick' ? 100 : 70))));
   const dist = Math.abs(t.x - f.x) - (f.w + t.w)/2;
   const inRange = dist < r;
   const facing = Math.sign(t.x - f.x) === f.face;
@@ -544,12 +568,11 @@ function resolveHit(f, t){
   f.combo = combo; f.comboT = 1.0;
 
   // ---- WT 竞技得分规则（按技术类型） ----
-  // 正拳躯干 1 分；踢（横踢）躯干 2 分；旋转技（后踢/旋风踢）躯干 3 分；
-  // 踢头 3 分；旋转技踢头 4 分。
-  // 头部判定按技术高度：飞踢（空中出腿）与旋风踢（横扫高位）打头部；横踢/后踢打躯干。
+  // 正拳躯干 1 分；踢（横踢/侧踢）躯干 2 分；旋转技（后踢/旋风踢）躯干 3 分；
+  // 踢头 3 分（下劈/飞踢/旋风踢）；旋转技踢头 4 分。
   const isKick = f.state==='kick';
   const isSpinning = f.cast==='spinx' || f.cast==='back';
-  const toHead = isKick && ((f.flyKick && f.airborne) || f.cast==='spinx');
+  const toHead = isKick && ((f.flyKick && f.airborne) || f.cast==='spinx' || f.cast==='axe');
   let pt = 0;
   if(isKick){
     pt = toHead ? 3 : 2;
@@ -643,13 +666,13 @@ function aiThink(dt){
         if(Math.random() < .45) startBackKick(f);
         else f.vx = -wantFace * 280;
       }
-      else if(roll < .48){ tryKick(f); }
+      else if(roll < .48){ if(Math.random() < .25) startAxe(f); else tryKick(f); }   // 近身混入下劈
       else if(roll < aggr){ if(Math.random() < .9) tryKick(f); else tryPunch(f); }
       else { f.vx = -wantFace * rand(40,100); }                      // 微调距离保持压制
     } else {               // 中距：突进与踢击试探
       if(roll < .26 && skill > .5){ tryKick(f); }
       else if(roll < aggr*.85){ if(Math.random() < .88) tryKick(f); else tryPunch(f); }
-      else if(roll < .82){ f.vx = wantFace * rand(280, 360) * rank.speed; }  // 果断突进
+      else if(roll < .82){ if(Math.random() < .22) startSide(f); else f.vx = wantFace * rand(280, 360) * rank.speed; }  // 突进踹/逼近
       else { f.vx = -wantFace * rand(60,140); }
     }
     // 格挡反应：玩家出招时（门槛降低、概率提高）
@@ -802,6 +825,8 @@ function update(dt, t){
         if(Math.abs(g.cyc) < .06){ g.cast=''; g.castT=0; g.phase=0; g.spinP=0; g.state='idle'; }
       }
     }
+    // 侧踢前冲踹（yop chagi：踹出的同时身体推进）
+    if(g.cast==='side' && g.stT < .3 && g.state==='kick') g.vx = g.face * 190;
     // 粒子
     for(let i=g.particle.length-1;i>=0;i--){
       const pt = g.particle[i];
@@ -864,8 +889,8 @@ function update(dt, t){
     const spinxHit = g.cast==='spinx' && g.phase === 2;
     const hitting = spinxHit || g.state==='attack' || g.state==='kick';
     if(hitting && !hitLocks.has(g)){
-      // 出招前摇后判定：横踢在弹腿完成瞬间（提膝 0.16s + 弹腿）、后踢在蹬出瞬间、飞踢空中前冲后
-      const delay = g.cast==='spinx' ? .04 : (g.cast==='back' ? .14 : (g.state==='kick' ? (g.flyKick ? .18 : .24) : .05));
+      // 出招前摇后判定：横踢在弧线扫击瞬间、下劈在劈过头部的瞬间、侧踢在踹出瞬间、后踢蹬出、飞踢空中前冲后
+      const delay = g.cast==='spinx' ? .04 : (g.cast==='back' ? .14 : (g.cast==='axe' ? .3 : (g.cast==='side' ? .2 : (g.state==='kick' ? (g.flyKick ? .18 : .24) : .05))));
       if(g.stT > delay){
         resolveHit(g, c.t);
         hitLocks.add(g);
@@ -1169,13 +1194,32 @@ function drawFighter(f, t, dt){
       kickPose = { kneeA: -1.15, shinA: -.35, lean: -.1 };     // 飞踢：腿前伸
     } else if(f.cast==='back'){
       kickPose = { kneeA: -1.35, shinA: -.05, lean: .24 };     // 后踢：腿蹬直 + 上身前倾发力
+    } else if(f.cast==='axe'){
+      // 下劈：直腿从头上方弧线劈下（脚经过头部高度，3 分踢头）
+      const p1 = clamp(f.stT/.24, 0, 1);                       // 直腿上摆过头
+      const p2 = clamp((f.stT-.24)/.12, 0, 1);                 // 向下劈击
+      const p3 = clamp((f.stT-.36)/.24, 0, 1);                 // 收腿回架
+      const kneeA = -2.55*p1 + 1.4*p2 + .45*p3;
+      const shinA = .9*p3;                                     // 全程直腿
+      const lean  = -.14*p1 + .1*p3;
+      kickPose = { kneeA, shinA, lean };
+    } else if(f.cast==='side'){
+      // 侧踢：翻髋折叠 → 直线前踹（脚跟领先，前冲推进）
+      const p1 = clamp(f.stT/.18, 0, 1);
+      const p2 = clamp((f.stT-.18)/.12, 0, 1);
+      const p3 = clamp((f.stT-.3)/.25, 0, 1);
+      const kneeA = -1.5*p1 + .55*p3;
+      const shinA = 2.1*p1 - 2.3*p2 + .55*p3;                  // 折叠 → 全伸直
+      const lean  = -.3*p1 + .22*p3;                           // 大幅后仰配平
+      kickPose = { kneeA, shinA, lean };
     } else {
-      const p1 = clamp(f.stT/.16, 0, 1);                  // 侧向高提膝（膝盖到胸腹高度）
-      const p2 = clamp((f.stT-.16)/.09, 0, 1);            // 转髋弹腿（小腿沿弧线弹出）
-      const p3 = clamp((f.stT-.25)/.25, 0, 1);            // 快速收腿回架
-      const kneeA = -1.85*p1 + .62*p3;                    // 提膝更高（大腿接近水平上翘）
-      const shinA = 2.35*p1 - 2.5*p2 + .55*p3;            // 小腿：紧贴大腿折叠 → 弧线弹直 → 收
-      const lean  = -.24*p1 + .2*p3;                      // 上身向远离目标侧倾斜
+      // 横踢：侧向高提膝 → 转髋「大弧线横扫」（小腿扫过大角度弧线，区别于前踢的直线蹬）
+      const p1 = clamp(f.stT/.15, 0, 1);
+      const p2 = clamp((f.stT-.15)/.1, 0, 1);
+      const p3 = clamp((f.stT-.25)/.25, 0, 1);
+      const kneeA = -1.7*p1 - .2*p2 + .62*p3;                  // 髋持续打开
+      const shinA = 2.3*p1 - 2.6*p2 + .55*p3;                  // 折叠 2.3 → 弧线扫过 → -0.3
+      const lean  = -.24*p1 + .2*p3;
       kickPose = { kneeA, shinA, lean };
     }
   }
@@ -1433,8 +1477,8 @@ function drawHUD(t){
   // 提示（触屏设备显示触屏技巧，桌面显示键盘操作）
   ctx.font = `500 ${11.5*s}px sans-serif`;
   ctx.fillStyle = 'rgba(147,163,199,.7)';
-  if(isTouch()) ctx.fillText('连点踢=旋风踢 · 按住方向+踢=后踢 · 空中踢=飞踢', CX, H - 12);
-  else ctx.fillText('A/D 移动 · W/空格 跳 · K 横踢 · 连按K=旋风踢 · 后退+K=后踢 · 空中K=飞踢 · J 正拳 · L 挡', CX, H - 24);
+  if(isTouch()) ctx.fillText('连点踢=下劈→旋风踢 · 按住方向+踢=侧踢/后踢 · 空中踢=飞踢', CX, H - 12);
+  else ctx.fillText('A/D 移动 · W/空格 跳 · K 横踢 · 连点K=下劈→旋风踢 · 前进+K=侧踢 · 后退+K=后踢 · 空中K=飞踢 · J 正拳 · L 挡', CX, H - 24);
 
   // 玩家连击显示
   if(player.combo >= 2 && player.comboT > 0){
