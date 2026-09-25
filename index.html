@@ -904,7 +904,9 @@ function update(dt, t){
       p.cool = Math.max(p.cool, .25);
     }
     const mv = isDown('right') - isDown('left');
-    if(mv !== 0){ p.face = mv; p.vx = mv * 230; }
+    if(mv !== 0){ p.vx = mv * 230; }
+    // 始终面向对手（格斗惯例：移动只分前进步/后退步，不随移动方向翻面——消除左右移动时的翻面晃动）
+    p.face = ai.x > p.x ? 1 : -1;
     if(kickEdge){ kickEdge = false; tryKick(player); }
     // 跳跃
     if(jumpBuf.p > 0){
@@ -944,12 +946,11 @@ function update(dt, t){
       if(g.kd>0) continue;
       const over = Math.abs(g.x - CX) - COURT;
       if(over > 42 && state.gamT <= 0){
-        // 完全出界 → 判罚：对方 +1 分，自己被拉回比赛区内
+        // 完全出界 → 判罚：对方 +1 分，角色被平滑弹回场内（不瞬移）
         if(g.side==='p') scoreA += 1; else scoreP += 1;
         g.lastPt = -1; g.lastPtT = 1.2;          // 负数 = 出界判罚（飘分显示"出界"）
-        g.x = CX + Math.sign(g.x - CX) * (COURT - 30);
-        g.vx = 0;
-        state.gamT = .6;                          // 判罚防抖
+        g.vx = -Math.sign(g.x - CX) * 430;       // 朝场内弹回（速度自然衰减滑回）
+        state.gamT = .6;                          // 判罚防抖（弹回期间不再判）
         sfx('guard', .5);
       }
       // 硬限制（防跑出屏幕）
