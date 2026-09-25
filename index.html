@@ -478,23 +478,115 @@ const fnt = (w, s) => `${w} ${s}px ${FONT}`;
 
 /* ---------- 画布 ---------- */
 const cv = $('cv'), ctx = cv.getContext('2d');
-let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0, COURT = 320;
-/* 比例尺：横屏大幅放大角色（画面主体），竖屏按宽度适配 */
-const SCALE = () => W > H ? clamp(H/600, 1.0, 1.55) : clamp(W/440, .78, 1.08);
+let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0;
+
+/* =====================================================================
+   世界坐标约定
+   ---------------------------------------------------------------------
+   · 世界原点 = 比赛区中心的地面点
+   · wx 为场地横向（与旧版 f.x 同义，逻辑层无需改动）
+   · wy 为「离地高度」，向上为正（与旧版 f.y 同义）
+   · 绘制世界物体时一律用 local y = -wy（即高度向上 → 画布 y 减小）
+   · 屏幕映射全部经由 CAM，见 camApply() / projX() / projY()
+   ===================================================================== */
+const COURT   = 300;    // WT 比赛区半径（世界单位）
+const RING_OUT = 384;   // 出界线半径（越出即判罚）
+const ART_H   = 118;    // 角色美术基准身高（世界单位），相机取景以此为参照
+
+/* 相机：跟随双方中点、按间距自适应推拉，含震屏与打击瞬间推近 */
+const CAM = {
+  x: 0,  tx: 0,        // 横向跟随（缓动）
+  y: 0,  ty: 0,        // 纵向（世界高度，通常 0 = 盯住地面）
+  zoom: 1.2, tzoom: 1.2,
+  shakeX: 0, shakeY: 0,
+  hitZoom: 0,          // 命中瞬间的额外推近（0~1，自动衰减）
+  koZoom: 0            // KO 慢推
+};
+
+/* 把相机变换压进 ctx；之后所有绘制都在世界坐标里 */
+function camApply(){
+  ctx.translate(CX + CAM.shakeX, GROUND + CAM.shakeY);
+  ctx.scale(CAM.zoom, CAM.zoom);
+  ctx.translate(-CAM.x, CAM.y);
+}
+/* 世界坐标 → 屏幕坐标（给 HUD 层叠加飘字用） */
+const projX = wx => CX + CAM.shakeX + (wx - CAM.x) * CAM.zoom;
+const projY = wy => GROUND + CAM.shakeY - (wy - CAM.y) * CAM.zoom;
+
+/* 兼容旧绘制代码：世界单位即像素，放大交给相机 */
+const SCALE = () => 1;
+/* UI/HUD 专用比例：跟随视口，不受相机影响 */
+const UI = () => clamp(Math.min(W / 1280, H / 720), .70, 1.45);
 const isTouch = () => matchMedia('(pointer: coarse)').matches;
+
+/* 调试用：?vw=1280&vh=720 可强制视口尺寸并按比例缩放到窗口（仅用于本地排版/取景校验） */
+const QS = new URLSearchParams(location.search);
+const FORCE_VW = +QS.get('vw') || 0, FORCE_VH = +QS.get('vh') || 0;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = window.innerWidth; H = window.innerHeight;
+  W = FORCE_VW || window.innerWidth; H = FORCE_VH || window.innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  if(FORCE_VW || FORCE_VH){
+    const k = Math.min(window.innerWidth / W, window.innerHeight / H);
+    cv.style.transformOrigin = '0 0';
+    cv.style.transform = 'scale(' + k + ')';
+  }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   CX = W / 2;
-  GROUND = H - clamp(H * 0.17, 88, 170);   // 地面高度（画面重心下移，人物更大）
-  COURT = clamp(Math.min(W*.38, H*.52), 120, 330);  // WT 比赛区半径（出界判罚线为 COURT+42；窄屏自动收窄）
+  /* 地面线：横屏压在画面下方约 1/5；竖屏上提，给底部触屏按键留出空间 */
+  GROUND = H - clamp(H * (W > H ? 0.20 : 0.30), 92, 300);
   buildBg();
   placeTouch();
   if(typeof checkOrientation === 'function') checkOrientation();
+}
+
+/* 相机每帧推进：取景 = 双方 + 边距 */
+function updateCam(dt){
+  /* 调试/取景用：window.__camOverride = {x, y, z} 可锁定相机 */
+  if(window.__camOverride){
+    CAM.x = CAM.tx = window.__camOverride.x || 0;
+    CAM.y = CAM.ty = window.__camOverride.y || 0;
+    CAM.zoom = CAM.tzoom = window.__camOverride.z;
+    CAM.shakeX = CAM.shakeY = 0;
+    return;
+  }
+  const alive = (state.mode === STATE.fight || state.mode === STATE.over);
+  const midX = alive ? (player.x + ai.x) / 2 : 0;
+  const spread = alive ? Math.abs(player.x - ai.x) : 0;
+
+  /* 需要容纳的世界宽度：双方间距 + 两侧边距（竖屏留窄边距，靠相机跟随） */
+  const land = W > H;
+  const MARGIN = land ? 200 : 75;
+  const need = spread + MARGIN * 2;
+  /* 横屏以宽度取景为主；竖屏以高度取景为主，横向允许贴边 */
+  let z = Math.min(W / need, H / (ART_H * (land ? 2.4 : 2.1)));
+  z = clamp(z, land ? 0.85 : 0.95, 3.4);
+  z *= (1 + CAM.hitZoom * 0.07 + CAM.koZoom * 0.28);
+  CAM.tzoom = z;
+
+  /* 横向限制在场地内，避免镜头长时间对着空场 */
+  CAM.tx = clamp(midX, -COURT * 0.5, COURT * 0.5);
+  CAM.ty = 0;
+
+  /* 指数缓动：帧率无关 */
+  const k = 1 - Math.pow(0.0016, dt);
+  CAM.zoom = lerp(CAM.zoom, CAM.tzoom, k);
+  CAM.x    = lerp(CAM.x,    CAM.tx,    k);
+  CAM.y    = lerp(CAM.y,    CAM.ty,    k);
+
+  /* 震屏（HUD 不受影响，只震世界层） */
+  if(shakeT > 0){
+    const a = shakeAmp * (shakeT / shakeDur);
+    CAM.shakeX = rand(-1, 1) * a;
+    CAM.shakeY = rand(-1, 1) * a;
+  } else { CAM.shakeX = 0; CAM.shakeY = 0; }
+
+  /* 打击推近与 KO 推进的衰减 */
+  CAM.hitZoom = Math.max(0, CAM.hitZoom - dt * 3.6);
+  if(state.mode === STATE.over || state.count) CAM.koZoom = Math.min(1, CAM.koZoom + dt * 0.8);
+  else CAM.koZoom = Math.max(0, CAM.koZoom - dt * 1.2);
 }
 window.addEventListener('resize', resize);
 
@@ -622,7 +714,7 @@ placeTouch();
 let portraitDismissed = false;
 function checkOrientation(){
   const show = state.mode !== STATE.menu
-    && window.innerHeight > window.innerWidth
+    && H > W                       // 用逻辑视口判断，与渲染保持一致
     && !portraitDismissed;
   $('rotate-tip').classList.toggle('show', show);
 }
@@ -657,7 +749,8 @@ function hitSpark(x, y, color, big){
   if(big) rings.push({ x, y, dur:.4, life:.4, r0:10, r1:120, color, lw:3.5 });
 }
 function addFloat(x, y, text, color, size){
-  floats.push({ x: clamp(x, 50, W - 50), y, vy:-56, dur:1.0, life:1.0, text, color, size:size||22 });
+  // x 为世界横向、y 为世界高度（向上为正）；渲染时经 projX/projY 投影
+  floats.push({ x: clamp(x, -COURT*1.7, COURT*1.7), y, vy:56, dur:1.0, life:1.0, text, color, size:size||22 });
 }
 function initEmbers(){
   embers = [];
@@ -716,7 +809,7 @@ const R = () => RANKS[rankIdx];
 function burst(f, n, color, spd=5){
   for(let i=0;i<n;i++){
     const a = rand(0, Math.PI*2), s = rand(spd*.4, spd);
-    f.particle.push({ x:f.x + f.face*20, y:f.y - f.h*.45,
+    f.particle.push({ x:f.x + f.face*20, y:(f.y||0) + f.h*.58,   // 世界高度：躯干上部
       vx:Math.cos(a)*s, vy:Math.sin(a)*s - 2, life:rand(.3,.7), max:0.7, r:rand(2,4.5), color });
   }
 }
@@ -850,14 +943,14 @@ function resolveHit(f, t){
   if(f.cast==='spinx') dmg = base * 1.9;                 // 旋风踢高伤
   if(f.flyKick) dmg = base * 1.35;                       // 飞踢加成
 
-  const hitX = t.x - t.face*10, hitY = GROUND - t.h*.62;
+  const hitX = t.x - t.face*10, hitY = t.h*.62;   // 世界高度（命中点在头部附近）
 
   if(t.state === 'block' && t.grounded){
     // 格挡成功（连击重置，不算分）
     f.combo = 0; f.comboT = 0;
     sfx('guard', .3);
     hitSpark(hitX, hitY, '#fbbf24', false);
-    addFloat(hitX, hitY - 26, '格挡', '#fde68a', 15);
+    addFloat(hitX, hitY + 26, '格挡', '#fde68a', 15);
     burst(t, 8, '#fbbf24', 4);
     t.freeze = Math.max(t.freeze, .18);
     return;
@@ -872,7 +965,7 @@ function resolveHit(f, t){
   shake(heavy ? 11 : 4.5, heavy ? .3 : .16);
   hitStopT = heavy ? .09 : .05;   // 命中定格（打击感）
   hitSpark(hitX, hitY, f.side==='p' ? '#9beaff' : '#ff9db0', heavy);
-  addFloat(hitX + rand(-8,8), hitY - 30, `+${pt}`, f.side==='p' ? '#fde047' : '#fda4af', heavy ? 26 : 21);
+  addFloat(hitX + rand(-8,8), hitY + 30, `+${pt}`, f.side==='p' ? '#fde047' : '#fda4af', heavy ? 26 : 21);
   burst(t, heavy ? 26 : 14, f.side==='p' ? '#ff3b5c' : '#22d3ee', heavy ? 8 : 6);
   // 击退
   t.vx = f.face * (f.cast==='spinx' ? 9 : 6);
@@ -890,7 +983,7 @@ function knockdown(t, f){
     sfx('ko', .6);
     shake(14, .55);
     flashA = .9; slowT = 1.0;
-    rings.push({ x:t.x, y:GROUND - t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
+    rings.push({ x:t.x, y:t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
     announce('三倒判负', 1.8, '#ff3b5c');
     t.roundDone = true;
     if(t.side==='p'){ aiWins++; sfx('lose', .5); } else { roundWins++; sfx('win', .5); }
@@ -905,7 +998,7 @@ function knockdown(t, f){
   shake(14, .55);
   flashA = .9;            // 全屏白闪
   slowT = 1.0;            // KO 慢动作
-  rings.push({ x:t.x, y:GROUND - t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
+  rings.push({ x:t.x, y:t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
   announce('K.O.!', 1.8, '#ff3b5c');
   t.vx = f.face * 9;
   // 进入 8 秒读秒（WT 规则：被击倒后裁判读秒，数到 8 未起身即 KO 判负）
@@ -993,7 +1086,7 @@ function announce(text, dur=1.4, color='#fbbf24'){ bigMsg = { text, t: dur, dur,
 function dustRing(f, n=12){
   for(let i=0;i<n;i++){
     const a = (i/n)*Math.PI*2;
-    f.particle.push({ x:f.x + Math.cos(a)*12, y:(f.y||0) - 2,
+    f.particle.push({ x:f.x + Math.cos(a)*12, y:(f.y||0) + 1,   // 世界高度：脚边扬尘
       vx:Math.cos(a)*rand(2,4.5), vy:-rand(.4,2), life:rand(.3,.5), max:.5,
       r:rand(1.5,3.2), color:'rgba(150,165,190,.65)' });
   }
@@ -1207,34 +1300,35 @@ function update(dt, t){
   }
   for(const g of [p,f]) g.stT += dt;
 
-  // WT 场地规则：出界判罚（gam-jeom：对方 +1 分，拉回场内）；出界余量随场地宽度收缩，窄屏角色不出屏
+  // WT 场地规则：出界判罚（gam-jeom：对方 +1 分，拉回场内）；出界余量随场地宽度收缩
   const obGrace = clamp(COURT * .18, 18, 42);
+  const RING_LIMIT = COURT + obGrace;
   if(state.mode===STATE.fight && !state.count){
     state.gamT = Math.max(0, (state.gamT||0) - dt);
     for(const g of [p,f]){
       if(g.kd>0) continue;
-      const over = Math.abs(g.x - CX) - COURT;
+      const over = Math.abs(g.x) - COURT;    // 世界坐标：场地中心为 0
       if(over > obGrace && state.gamT <= 0){
         if(g.side==='p') scoreA += 1; else scoreP += 1;
-        addFloat(g.x, GROUND - g.h - 30, '出界判罚', '#ff8fa3', 16);
-        addFloat(g.x, GROUND - g.h - 4, '对方 +1', '#ffb3c0', 14);
-        g.vx = -Math.sign(g.x - CX) * 430;       // 朝场内弹回（速度自然衰减滑回）
+        addFloat(g.x, g.h + 30, '出界判罚', '#ff8fa3', 16);
+        addFloat(g.x, g.h + 4, '对方 +1', '#ffb3c0', 14);
+        g.vx = -Math.sign(g.x) * 430;       // 朝场内弹回（速度自然衰减滑回）
         state.gamT = .6;                          // 判罚防抖（弹回期间不再判）
         sfx('guard', .5);
       }
-      g.x = clamp(g.x, CX - COURT - obGrace - 20, CX + COURT + obGrace + 20);
+      g.x = clamp(g.x, -(RING_LIMIT + 20), RING_LIMIT + 20);
     }
   } else {
-    const L = CX - W*.44, Rg = CX + W*.44;
-    p.x = clamp(p.x, L, Rg); f.x = clamp(f.x, L, Rg);
+    p.x = clamp(p.x, -RING_LIMIT, RING_LIMIT);
+    f.x = clamp(f.x, -RING_LIMIT, RING_LIMIT);
   }
   // 面对面推挤（被动推挤不算出界，最多推到判罚线上）
   const gap = (p.w + f.w)/2 + 12;
   if(Math.abs(f.x - p.x) < gap){
     if(p.x < f.x){ p.x = f.x - gap; } else { p.x = f.x + gap; }
   }
-  p.x = clamp(p.x, CX - COURT - obGrace, CX + COURT + obGrace);
-  f.x = clamp(f.x, CX - COURT - obGrace, CX + COURT + obGrace);
+  p.x = clamp(p.x, -RING_LIMIT, RING_LIMIT);
+  f.x = clamp(f.x, -RING_LIMIT, RING_LIMIT);
 
   // 回合计时（WT：每回合限时，时间到按得分判胜负；开局倒计时期间不走表）
   if(state.mode===STATE.fight && !state.count && !f.roundDone && !p.roundDone && !introHold){
@@ -1258,8 +1352,8 @@ function startRound(){
   const hp = R().hp;
   player.reset(hp); ai.reset(hp);
   player.hpDisp = hp; ai.hpDisp = hp;
-  const off = clamp(COURT * .5, 80, 150);   // 开局站位随场地宽度收缩（窄屏不出界）
-  player.x = CX - off; ai.x = CX + off;
+  const off = clamp(COURT * .5, 80, 150);   // 开局站位（世界坐标，对称于场地中心）
+  player.x = -off; ai.x = off;
   player.face = 1; ai.face = -1;
   player.roundDone = false; ai.roundDone = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
@@ -1340,147 +1434,303 @@ function nextRank(){
 
 /* ---------- 绘制 · 赛场 ---------- */
 /* 背景静态层缓存：观众席/LED/地面全部静态，只绘一次（离屏），每帧 drawImage */
-let bgCache = null;
+/* =====================================================================
+   绘制 · 场景（视觉底座）
+   分层：远景场馆（屏幕空间＋视差）→ 地面基色（屏幕空间）
+        → 世界层（相机：擂台／影子／选手／特效）→ HUD
+   ===================================================================== */
+let bgCache = null, bgLed = null, BG_PAD = 300;
+
+/* 场馆远景：静态部分只画一次并缓存成比屏幕更宽的画布，支持视差平移 */
 function buildBg(){
+  BG_PAD = Math.max(260, Math.round((W + 560) * 0.18));
+  const CW = W + BG_PAD * 2;
   bgCache = document.createElement('canvas');
-  bgCache.width = Math.max(1, cv.width);
-  bgCache.height = Math.max(1, cv.height);
+  bgCache.width  = Math.max(1, Math.round(CW * DPR));
+  bgCache.height = Math.max(1, Math.round(H  * DPR));
   const c = bgCache.getContext('2d');
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const s = SCALE();
+  const cxs = BG_PAD + CX;            // 缓存内的画面中心
 
-  // 整屏清底：大厅纵深渐变
+  /* 1) 场馆纵深：顶部近黑 → 远处幕墙微亮 */
   const hall = c.createLinearGradient(0, 0, 0, H);
-  hall.addColorStop(0, '#04060b');
-  hall.addColorStop(.52, '#0a101f');
-  hall.addColorStop(.8, '#101a30');
-  hall.addColorStop(1, '#0a0f1c');
+  hall.addColorStop(0,   '#03050a');
+  hall.addColorStop(.30, '#070c18');
+  hall.addColorStop(.62, '#0d1526');
+  hall.addColorStop(.86, '#111c33');
+  hall.addColorStop(1,   '#0a1120');
   c.fillStyle = hall;
-  c.fillRect(0, 0, W, H);
+  c.fillRect(0, 0, CW, H);
 
-  // 远端主光环（场馆中央高亮）
-  const glow = c.createRadialGradient(CX, GROUND - 40, 20, CX, GROUND - 40, W*.52);
-  glow.addColorStop(0, 'rgba(96,140,220,.14)');
-  glow.addColorStop(.5, 'rgba(70,110,190,.05)');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = glow;
-  c.fillRect(0, 0, W, GROUND + 60);
+  /* 2) 擂台正上方的主光晕：把视线压向擂台 */
+  const halo = c.createRadialGradient(cxs, GROUND - H*.10, 20, cxs, GROUND - H*.10, Math.max(W, H)*.62);
+  halo.addColorStop(0,   'rgba(104,150,235,.18)');
+  halo.addColorStop(.45, 'rgba(70,112,196,.07)');
+  halo.addColorStop(1,   'rgba(0,0,0,0)');
+  c.fillStyle = halo;
+  c.fillRect(0, 0, CW, H);
 
-  // ---- LED 横幅 ----
-  const ledY = GROUND - 252*s, ledH = 34*s;
-  const ledGrad = c.createLinearGradient(0, ledY, 0, ledY + ledH);
-  ledGrad.addColorStop(0, 'rgba(14,22,44,.92)');
-  ledGrad.addColorStop(1, 'rgba(8,13,28,.92)');
-  c.fillStyle = ledGrad;
-  roundRectOn(c, CX - W*.46, ledY, W*.92, ledH, 8*s);
-  c.fill();
-  c.strokeStyle = 'rgba(126,156,220,.25)';
-  c.lineWidth = 1;
-  roundRectOn(c, CX - W*.46, ledY, W*.92, ledH, 8*s);
+  /* 3) 顶部桁架 + 灯组 */
+  const trussY = Math.max(14, H * .05);
+  c.strokeStyle = 'rgba(126,156,220,.16)'; c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(0, trussY); c.lineTo(CW, trussY);
+  c.moveTo(0, trussY + 13); c.lineTo(CW, trussY + 13);
   c.stroke();
-  c.save();
-  roundRectOn(c, CX - W*.46, ledY, W*.92, ledH, 8*s);
-  c.clip();
-  c.font = fnt(700, 13*s);
-  c.textAlign = 'left';
-  c.textBaseline = 'middle';
-  const ledText = '跆拳道 × AI 对战　·　WT 竞技规则　·　抖音校园 WowLand　·　上海理工大学跆拳道社　·　五局三胜 · KO 制　·　';
-  const tw = c.measureText(ledText).width;
-  c.fillStyle = 'rgba(147,197,253,.55)';
-  for(let x = CX - W*.46; x < CX + W*.46; x += tw) c.fillText(ledText, x, ledY + ledH/2 + 1);
-  c.restore();
+  c.strokeStyle = 'rgba(126,156,220,.09)'; c.lineWidth = 1.5;
+  for(let x = -20; x < CW + 20; x += 46){
+    c.beginPath(); c.moveTo(x, trussY); c.lineTo(x + 23, trussY + 13); c.stroke();
+  }
+  for(let i = 0; i < 3; i++){
+    const lx = cxs + (i - 1) * W * .30, main = (i === 1);
+    c.fillStyle = main ? 'rgba(198,228,255,.95)' : 'rgba(178,208,246,.70)';
+    roundRectOn(c, lx - 34, trussY + 13, 68, 7, 3); c.fill();
+    c.fillStyle = main ? 'rgba(212,238,255,.95)' : 'rgba(186,214,248,.78)';
+    for(const dx of [-24, -8, 8, 24]){ roundRectOn(c, lx + dx - 5, trussY + 20, 10, 11, 2); c.fill(); }
+    const lg = c.createRadialGradient(lx, trussY + 34, 2, lx, trussY + 34, 58);
+    lg.addColorStop(0, main ? 'rgba(190,225,255,.30)' : 'rgba(180,215,255,.17)');
+    lg.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = lg;
+    c.fillRect(lx - 70, trussY + 20, 140, 90);
+  }
 
-  // ---- 观众席（三排剪影，远→近渐暗） ----
-  const rowBase = GROUND - 178*s;
+  /* 4) 观众席：四排剪影（远排小暗、近排大亮），带肩线起伏 */
   const rows = [
-    { y: rowBase - 26*s, sp: 26, hr: 8*s,  a: .30, j: 3.1 },
-    { y: rowBase - 6*s,  sp: 30, hr: 10*s, a: .42, j: 7.7 },
-    { y: rowBase + 18*s, sp: 34, hr: 12*s, a: .55, j: 4.3 },
+    { dy: 236, sp: 21, hr: 6.2, a: .34 },
+    { dy: 212, sp: 25, hr: 7.8, a: .45 },
+    { dy: 185, sp: 30, hr: 9.4, a: .57 },
+    { dy: 154, sp: 37, hr: 11.4, a: .70 }
   ];
   for(const row of rows){
-    c.fillStyle = `rgba(6,9,18,${row.a})`;
-    for(let i=0;i<Math.ceil(W/row.sp)+2;i++){
-      const hx = i*row.sp + (row.j*7 % row.sp);
-      const hr = row.hr * (0.8 + Math.abs(Math.sin(i*row.j))*.5);
-      const hy = row.y - Math.abs(Math.sin(i*2.9))*8*s;
+    const baseY = GROUND - row.dy;
+    c.fillStyle = `rgba(4,7,15,${row.a})`;
+    for(let i = 0, n = Math.ceil(CW / row.sp) + 2; i < n; i++){
+      const hx = i * row.sp + ((row.hr * 137) % row.sp);
+      const wob = Math.abs(Math.sin(i * 1.77 + row.dy));
+      const hr = row.hr * (0.82 + wob * 0.42);
+      const hy = baseY - wob * 7;
       c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI*2); c.fill();
-      c.fillRect(hx - hr*1.15, hy + hr*.6, hr*2.3, hr*2.6);
+      c.beginPath();
+      c.moveTo(hx - hr*1.5, hy + hr*3.4);
+      c.quadraticCurveTo(hx, hy + hr*.4, hx + hr*1.5, hy + hr*3.4);
+      c.closePath(); c.fill();
     }
   }
-
-  // ---- 顶光桁架 ----
-  c.strokeStyle = 'rgba(126,156,220,.14)';
-  c.lineWidth = 2;
-  c.beginPath();
-  c.moveTo(0, 26); c.lineTo(W, 26);
-  c.moveTo(0, 38); c.lineTo(W, 38);
-  c.stroke();
-  for(const lx of [CX - COURT*.55, CX + COURT*.55]){
-    c.fillStyle = 'rgba(180,215,255,.8)';
-    c.fillRect(lx - 20, 36, 40, 5);
-    c.fillStyle = 'rgba(190,225,255,.9)';
-    for(const dx of [-14, 0, 14]) c.fillRect(lx + dx - 3, 41, 6, 7);
+  /* 观众席零星反光（手机屏／相机灯） */
+  for(let i = 0; i < 52; i++){
+    const rx = (Math.sin(i * 91.7) * .5 + .5) * CW;
+    const ry = GROUND - (152 + (i % 4) * 26) - (Math.sin(i * 3.3) + 1) * 5;
+    const a = .10 + ((i * 37) % 13) / 44;
+    c.fillStyle = i % 3 === 0 ? `rgba(186,230,253,${a*.5})` : `rgba(255,247,214,${a*.45})`;
+    c.beginPath(); c.arc(rx, ry, 1.5, 0, Math.PI*2); c.fill();
   }
 
-  // ---- 地面 ----
-  const fl = c.createLinearGradient(0, GROUND - 8, 0, H);
-  fl.addColorStop(0, '#141d33');
-  fl.addColorStop(.18, '#0d1426');
-  fl.addColorStop(1, '#060a14');
-  c.fillStyle = fl;
-  c.fillRect(0, GROUND - 8, W, H - GROUND + 8);
-  // 地面中央泛光
-  const cg = c.createRadialGradient(CX, GROUND + 10, 10, CX, GROUND + 10, COURT*1.5);
-  cg.addColorStop(0, 'rgba(90,140,220,.13)');
-  cg.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = cg;
-  c.fillRect(CX - COURT*1.6, GROUND - 8, COURT*3.2, H - GROUND + 8);
-
-  // 中央场地线
-  c.strokeStyle = 'rgba(34,211,238,.28)';
-  c.lineWidth = 2;
-  c.setLineDash([12, 14]);
-  c.beginPath(); c.moveTo(0, GROUND); c.lineTo(W, GROUND); c.stroke();
-  c.setLineDash([]);
-
-  // WT 比赛区：大圆 + 内环
-  c.strokeStyle = 'rgba(103,232,249,.20)';
-  c.lineWidth = 2.5;
-  c.beginPath(); c.ellipse(CX, GROUND + 14*s, COURT*.72, COURT*.16, 0, 0, Math.PI*2); c.stroke();
-  c.strokeStyle = 'rgba(103,232,249,.10)';
-  c.beginPath(); c.ellipse(CX, GROUND + 14*s, COURT*.55, COURT*.11, 0, 0, Math.PI*2); c.stroke();
-  // 中心徽记：双圆 + 「TKD × AI」
-  c.font = fnt(800, 11*s);
-  c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillStyle = 'rgba(147,197,253,.30)';
-  c.fillText('TKD × AI', CX, GROUND + 14*s + 20*s);
-
-  // 出界判罚线（地面短标，不再画满屏红线）
-  for(const bx of [CX - COURT, CX + COURT]){
-    c.strokeStyle = 'rgba(255,90,115,.55)';
-    c.lineWidth = 3;
-    c.beginPath(); c.moveTo(bx, GROUND + 2); c.lineTo(bx, GROUND - 60*s); c.stroke();
-    // 底部警戒三角
-    c.fillStyle = 'rgba(255,90,115,.7)';
-    c.beginPath();
-    c.moveTo(bx, GROUND + 2); c.lineTo(bx - 8, GROUND + 16); c.lineTo(bx + 8, GROUND + 16);
-    c.closePath(); c.fill();
-    c.font = fnt(700, 10*s);
-    c.fillStyle = 'rgba(255,120,140,.55)';
-    c.fillText('出界线', bx, GROUND - 70*s);
+  /* 5) 环形 LED 广告板（远端），滚动文字在动态层绘制 */
+  const ledH = 30;
+  const ledW = Math.min(W * .92, 1240);
+  const ledX = cxs - ledW / 2;
+  const ledY = GROUND - 150 - ledH;
+  c.fillStyle = 'rgba(7,11,22,.94)';
+  roundRectOn(c, ledX, ledY, ledW, ledH, 6); c.fill();
+  const lg2 = c.createLinearGradient(0, ledY, 0, ledY + ledH);
+  lg2.addColorStop(0, 'rgba(34,211,238,.10)');
+  lg2.addColorStop(.5, 'rgba(34,211,238,.03)');
+  lg2.addColorStop(1, 'rgba(139,92,246,.10)');
+  c.fillStyle = lg2;
+  roundRectOn(c, ledX, ledY, ledW, ledH, 6); c.fill();
+  c.strokeStyle = 'rgba(126,156,220,.30)'; c.lineWidth = 1;
+  roundRectOn(c, ledX, ledY, ledW, ledH, 6); c.stroke();
+  for(const px of [ledX - 8, ledX + ledW + 8]){
+    c.fillStyle = 'rgba(10,16,30,.95)';
+    roundRectOn(c, px - 5, ledY - 18, 10, ledH + 62, 4); c.fill();
+    c.fillStyle = 'rgba(103,232,249,.5)';
+    roundRectOn(c, px - 2, ledY - 13, 4, 8, 2); c.fill();
   }
-  // 两端角落光柱（电子计分柱）
-  for(const px of [CX - COURT - 26, CX + COURT + 26]){
-    const pg = c.createLinearGradient(0, GROUND - 150*s, 0, GROUND);
-    pg.addColorStop(0, 'rgba(126,156,220,0)');
-    pg.addColorStop(1, 'rgba(126,156,220,.14)');
-    c.fillStyle = pg;
-    c.fillRect(px - 3, GROUND - 150*s, 6, 150*s);
-    c.fillStyle = 'rgba(200,225,255,.35)';
-    roundRectOn(c, px - 9, GROUND - 160*s, 18, 12*s, 3*s);
-    c.fill();
+  bgLed = { x: ledX - BG_PAD, y: ledY, w: ledW, h: ledH };   // 存屏幕坐标（扣除缓存内边距）
+}
+
+/* 远景层：缓存贴图 + 视差 + 动态 LED 滚动 + 体积光锥 */
+function drawHall(t){
+  const par = CAM.x * CAM.zoom;                 // 相机横向位移的像素量
+  const off1 = -par * 0.10;
+  if(bgCache) ctx.drawImage(bgCache, -BG_PAD + off1, 0, W + BG_PAD * 2, H);
+  else { ctx.fillStyle = '#05070d'; ctx.fillRect(0, 0, W, H); }
+
+  /* LED 滚动文字（视差略大，贴住场馆中景） */
+  if(bgLed){
+    const ox = bgLed.x - par * 0.16, oy = bgLed.y;
+    ctx.save();
+    roundRect(ox, oy, bgLed.w, bgLed.h, 6);
+    ctx.clip();
+    ctx.font = fnt(800, 15);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const ledText = '跆拳道 × AI 对战　·　WT 竞技规则　·　上海理工大学跆拳道社　·　AI 校园招新　·　五局三胜 · KO 制　·　';
+    const tw = ctx.measureText(ledText).width;
+    const scroll = (t * 40) % tw;
+    ctx.fillStyle = 'rgba(103,232,249,.42)';
+    for(let x = ox - scroll; x < ox + bgLed.w; x += tw) ctx.fillText(ledText, x, oy + bgLed.h/2 + 1);
+    ctx.globalAlpha = .10; ctx.fillStyle = '#67e8f9';
+    for(let sy = oy; sy < oy + bgLed.h; sy += 3) ctx.fillRect(ox, sy, bgLed.w, 1);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  drawBeams(t);
+}
+
+/* 体积光锥：两束跟随双方选手，随呼吸轻微摆动 */
+function drawBeams(t){
+  const topY = Math.max(20, H * .05) + 34;
+  const src = [[CX - W*.30, topY], [CX + W*.30, topY]];
+  const tgt = [projX(player.x), projX(ai.x)];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for(let i = 0; i < 2; i++){
+    const sx0 = src[i][0], sy0 = src[i][1], tx = tgt[i];
+    const sway = Math.sin(t * .45 + i * 1.7) * 14;
+    const spreadTop = 26, spreadBot = 96 * CAM.zoom;
+    const g = ctx.createLinearGradient(sx0, sy0, tx, GROUND);
+    g.addColorStop(0,   'rgba(172,212,255,.17)');
+    g.addColorStop(.55, 'rgba(150,195,255,.07)');
+    g.addColorStop(1,   'rgba(150,195,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(sx0 - spreadTop + sway, sy0);
+    ctx.lineTo(sx0 + spreadTop + sway, sy0);
+    ctx.lineTo(tx + spreadBot, GROUND + 30);
+    ctx.lineTo(tx - spreadBot, GROUND + 30);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* 地面基色（纯竖直渐变，不随相机横移，故可在屏幕空间绘制） */
+function drawFloorBase(t){
+  const fl = ctx.createLinearGradient(0, GROUND - 4, 0, H);
+  fl.addColorStop(0,   '#17243f');
+  fl.addColorStop(.10, '#111b31');
+  fl.addColorStop(.42, '#0a1122');
+  fl.addColorStop(1,   '#05080f');
+  ctx.fillStyle = fl;
+  ctx.fillRect(0, GROUND - 4, W, H - GROUND + 4);
+
+  /* 地平线雾：让地面与场馆衔接自然 */
+  const hz = ctx.createLinearGradient(0, GROUND - 30, 0, GROUND + 44);
+  hz.addColorStop(0,  'rgba(120,165,240,0)');
+  hz.addColorStop(.45,'rgba(120,165,240,.10)');
+  hz.addColorStop(1,  'rgba(120,165,240,0)');
+  ctx.fillStyle = hz;
+  ctx.fillRect(0, GROUND - 30, W, 74);
+
+  /* 赛场浮尘 */
+  ctx.save();
+  for(const em of embers){
+    ctx.globalAlpha = em.a * (0.6 + 0.4 * Math.sin(em.ph * 2));
+    ctx.fillStyle = '#9ec5ff';
+    ctx.beginPath(); ctx.arc(em.x, em.y, em.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* 擂台（世界空间，经相机变换）：垫子分区 / 出界警戒带 / 徽记 / 灯池 */
+function drawArena(t){
+  const SQ = 0.30;                       // 地面椭圆压缩比（2.5D 视角）
+  const ring = (r, color, lw) => {
+    ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.ellipse(0, 0, r, r * SQ, 0, 0, Math.PI*2); ctx.stroke();
+  };
+
+  /* 灯光落在垫子上的亮池 */
+  ctx.save();
+  ctx.scale(1, SQ);
+  const pool = ctx.createRadialGradient(0, 0, 20, 0, 0, COURT * 1.55);
+  pool.addColorStop(0,   'rgba(124,172,255,.15)');
+  pool.addColorStop(.55, 'rgba(90,135,220,.055)');
+  pool.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(0, 0, COURT * 1.55, 0, Math.PI*2);
+  ctx.fillStyle = pool; ctx.fill();
+  ctx.restore();
+
+  /* 出界警戒带：COURT → RING_OUT，斜纹填充 */
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, RING_OUT, RING_OUT * SQ, 0, 0, Math.PI*2);
+  ctx.ellipse(0, 0, COURT,   COURT   * SQ, 0, 0, Math.PI*2, true);
+  ctx.clip();
+  ctx.globalAlpha = .11;
+  ctx.strokeStyle = '#ff5a73';
+  ctx.lineWidth = 9;
+  for(let i = -RING_OUT - 40; i < RING_OUT + 40; i += 24){
+    ctx.beginPath();
+    ctx.moveTo(i, -RING_OUT * SQ * 1.6);
+    ctx.lineTo(i + RING_OUT * SQ * 3.2, RING_OUT * SQ * 1.6);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* 垫子分区同心环 + 出界线 */
+  ring(RING_OUT,    'rgba(255,90,115,.55)', 3);
+  ring(COURT,       'rgba(103,232,249,.32)', 3);
+  ring(COURT * .66, 'rgba(103,232,249,.15)', 2);
+  ring(COURT * .33, 'rgba(103,232,249,.10)', 1.5);
+
+  /* 中心徽记 */
+  ctx.save();
+  ctx.scale(1, SQ);
+  ctx.beginPath(); ctx.arc(0, 0, COURT * .13, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(147,197,253,.34)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.restore();
+  ctx.font = fnt(900, 19);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(147,197,253,.34)';
+  ctx.fillText('TKD × AI', 0, -2);
+
+  /* 出界线端标（贴在界线上，随相机移动） */
+  for(const bx of [-COURT, COURT]){
+    ctx.save();
+    ctx.translate(bx, 0);
+    ctx.fillStyle = 'rgba(255,90,115,.75)';
+    ctx.beginPath();
+    ctx.moveTo(0, 2); ctx.lineTo(-7, 15); ctx.lineTo(7, 15);
+    ctx.closePath(); ctx.fill();
+    ctx.font = fnt(700, 12);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(255,120,140,.60)';
+    ctx.fillText('出界线', 0, -6);
+    ctx.restore();
+  }
+
+  /* 四分位刻度：给垫子一点可读的方位感 */
+  ctx.strokeStyle = 'rgba(147,197,253,.16)';
+  ctx.lineWidth = 2;
+  for(let i = 0; i < 8; i++){
+    const a = i * Math.PI / 4;
+    const x0 = Math.cos(a) * COURT * .92, y0 = Math.sin(a) * COURT * .92 * SQ;
+    const x1 = Math.cos(a) * COURT * 1.04, y1 = Math.sin(a) * COURT * 1.04 * SQ;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   }
 }
+
+/* 接触阴影：单独一遍，保证在所有角色之下且不互相覆盖 */
+function drawShadows(){
+  const list = [player, ai];
+  for(const f of list){
+    const air = f.y || 0;
+    const k = clamp(1 - air / 230, .32, 1);
+    const rx = 44 * (0.72 + k * 0.28);
+    ctx.save();
+    ctx.translate(f.x, 0);
+    ctx.scale(1, 0.30);
+    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, rx);
+    g.addColorStop(0,   `rgba(0,0,0,${.66 * k})`);
+    g.addColorStop(.55, `rgba(0,0,0,${.28 * k})`);
+    g.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
 function roundRectOn(c, x, y, w, h, r){
   c.beginPath();
   c.moveTo(x+r, y); c.arcTo(x+w, y, x+w, y+h, r); c.arcTo(x+w, y+h, x, y+h, r);
@@ -1488,75 +1738,11 @@ function roundRectOn(c, x, y, w, h, r){
 }
 function roundRect(x,y,w,h,r){ roundRectOn(ctx, x,y,w,h,r); }
 
-function drawGround(t){
-  // 静态背景贴缓存（扩边清底：震屏偏移时不露底）
-  ctx.clearRect(-40, -40, W + 80, H + 80);
-  if(bgCache) ctx.drawImage(bgCache, 0, 0, W, H);
-
-  const s = SCALE();
-  // —— 动态氛围：扫描光束 ——
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for(let i=0;i<2;i++){
-    const lx = CX + (i===0 ? -1 : 1) * COURT*.55;
-    const sway = Math.sin(t*.32 + i*2.4) * .1;
-    const a = .05 + .035 * (0.5 + 0.5*Math.sin(t*.7 + i*1.7));
-    const gr = ctx.createLinearGradient(0, 40, 0, GROUND);
-    gr.addColorStop(0, `rgba(140,190,255,${a*1.6})`);
-    gr.addColorStop(1, 'rgba(140,190,255,0)');
-    ctx.fillStyle = gr;
-    ctx.beginPath();
-    ctx.moveTo(lx - 22, 40); ctx.lineTo(lx + 22, 40);
-    ctx.translate(lx, 40); ctx.rotate(sway); ctx.translate(-lx, -40);
-    ctx.lineTo(lx + 170*s, GROUND); ctx.lineTo(lx - 170*s, GROUND);
-    ctx.closePath(); ctx.fill();
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  ctx.restore();
-
-  // 观众席星光（手机灯闪烁）
-  ctx.save();
-  for(let i=0;i<12;i++){
-    const bx = (Math.sin(i*12.9898)*43758.5453 % 1) * W;
-    const by = GROUND - (150 + (i%3)*26)*s;
-    const tw = Math.max(0, Math.sin(t*(1.3 + (i%5)*.4) + i*2.2));
-    if(tw > .75){
-      ctx.globalAlpha = (tw - .75) * 2.4;
-      ctx.fillStyle = i%3===0 ? '#bae6fd' : '#fef3c7';
-      ctx.beginPath(); ctx.arc(Math.abs(bx), by, 1.6*s, 0, Math.PI*2); ctx.fill();
-    }
-  }
-  ctx.restore();
-
-  // 赛场浮尘
-  ctx.save();
-  for(const em of embers){
-    ctx.globalAlpha = em.a * (0.6 + 0.4*Math.sin(em.ph*2));
-    ctx.fillStyle = '#9ec5ff';
-    ctx.beginPath(); ctx.arc(em.x, em.y, em.r, 0, Math.PI*2); ctx.fill();
-  }
-  ctx.restore();
-
-  // 出招者脚下聚光
-  for(const g of [player, ai]){
-    if(state.mode !== STATE.fight && state.mode !== STATE.over) break;
-    const gr = ctx.createRadialGradient(g.x, GROUND + 4, 4, g.x, GROUND + 4, 70*s);
-    gr.addColorStop(0, 'rgba(150,190,255,.14)');
-    gr.addColorStop(1, 'rgba(150,190,255,0)');
-    ctx.fillStyle = gr;
-    ctx.beginPath(); ctx.ellipse(g.x, GROUND + 6, 70*s, 16*s, 0, 0, Math.PI*2); ctx.fill();
-  }
-}
-
 /* ---------- 绘制 · 选手 ---------- */
 function drawFighter(f, t, dt){
   const s = SCALE();
   ctx.save();
-  ctx.translate(f.x, GROUND - (f.y||0));   // 跳跃抬高
-  // 影子（空中时投影在地面）
-  ctx.fillStyle = 'rgba(0,0,0,' + clamp(.5 - (f.y||0)/260, .12, .5) + ')';
-  ctx.beginPath(); ctx.ellipse(0, (f.y||0) + 2, 30*s, 6.5*s, 0, 0, Math.PI*2); ctx.fill();
-
+  ctx.translate(f.x, -(f.y||0));   // 世界坐标：高度向上 → 画布 y 减小；落地投影统一由 drawShadows 处理
   // 受击反馈：整体变白一瞬
   const isPlayer = f.side==='p';
   const fw = f.flash > .08 ? 1 : f.flash / .08;
@@ -1630,9 +1816,6 @@ function drawFighter(f, t, dt){
   ctx.save();
   ctx.scale(f.face, 1);
 
-  // —— 人体比例（脚底 y=0 贴地，向上为负）——
-  const hipY = -52*s, shY = -96*s;
-  const headR = 12.5*s, headY = -113*s;
   // 踢腿姿态：按 WT 标准五阶段
   let kickPose = null;   // { kneeA, shinA, lean }
   if(f.state==='kick' && !isSpinx){
@@ -1681,12 +1864,33 @@ function drawFighter(f, t, dt){
   }
   const swing = Math.sin(f.stepT*8) * .35 * (f.swingAmp || 0);   // 行走摆腿
 
-  // —— 体积化肢体：锥形胶囊（根粗末细）+ 关节球 ——
-  const capsule = (x1, y1, x2, y2, w1, w2, cIn) => {
+  // —— 人体基准（世界单位；脚底 y=0，向上为负）——
+  const HIP_Y = -54*s, SHO_Y = -98*s;         // 髋、肩
+  const HEAD_Y = -115*s, HEAD_RX = 7.6*s, HEAD_RY = 8.6*s;
+  const SHO_HW = 16.5*s, HIP_HW = 11*s;       // 肩半宽 / 髋半宽
+
+  // 明暗工具：兼容 '#rrggbb' 与 'rgb(r,g,b)'（外层配色经 mixC 处理后是后者）
+  const parseC = (c) => {
+    if(c[0] === '#'){
+      const p = parseInt(c.slice(1), 16);
+      return [(p>>16)&255, (p>>8)&255, p&255];
+    }
+    const m = c.match(/\d+/g);
+    return [+m[0], +m[1], +m[2]];
+  };
+  const shade = (c, k, toWhite) => {
+    const [r, g, b] = parseC(c);
+    const f = v => Math.round(toWhite ? v + (255 - v) * k : v * (1 - k));
+    return `rgb(${f(r)},${f(g)},${f(b)})`;
+  };
+  const dk = (c, k) => shade(c, k, false);
+  const lt = (c, k) => shade(c, k, true);
+
+  /* 锥形肢体：根粗末细 + 描边 + 沿轴向的圆柱渐变（核心体积感来源） */
+  const limb = (x1, y1, x2, y2, w1, w2, fill, shadowK) => {
     const a = Math.atan2(y2 - y1, x2 - x1);
     const nx = Math.cos(a + Math.PI/2), ny = Math.sin(a + Math.PI/2);
-    for(const pass of [0, 1]){        // 0=描边层 1=内色层
-      const o = pass ? 0 : 2.2*s;
+    const path = (o) => {
       ctx.beginPath();
       ctx.moveTo(x1 + nx*(w1/2 + o), y1 + ny*(w1/2 + o));
       ctx.lineTo(x2 + nx*(w2/2 + o), y2 + ny*(w2/2 + o));
@@ -1694,49 +1898,100 @@ function drawFighter(f, t, dt){
       ctx.lineTo(x1 - nx*(w1/2 + o), y1 - ny*(w1/2 + o));
       ctx.arc(x1, y1, w1/2 + o, a - Math.PI/2, a + Math.PI/2, true);
       ctx.closePath();
-      ctx.fillStyle = pass ? cIn : lineC;
-      ctx.fill();
-    }
-    // 上缘高光（体积感）
-    ctx.strokeStyle = 'rgba(255,255,255,.22)';
-    ctx.lineWidth = 1.1*s;
-    ctx.beginPath();
-    ctx.moveTo(x1 + nx*(w1*.28), y1 + ny*(w1*.28));
-    ctx.lineTo(x2 + nx*(w2*.3), y2 + ny*(w2*.3));
-    ctx.stroke();
+    };
+    path(1.5*s); ctx.fillStyle = lineC; ctx.fill();          // 描边
+    path(0);
+    const g = ctx.createLinearGradient(x1 + nx*w1/2, y1 + ny*w1/2, x1 - nx*w1/2, y1 - ny*w1/2);
+    g.addColorStop(0,   lt(fill, .20));                       // 受光面
+    g.addColorStop(.45, fill);
+    g.addColorStop(1,   dk(fill, shadowK === undefined ? .30 : shadowK));
+    ctx.fillStyle = g; ctx.fill();
   };
-  const drawLeg = (hx, kneeA, shinA, cIn, footC) => {
-    const kx = hx*s - Math.sin(kneeA)*23*s, ky = hipY + Math.cos(kneeA)*23*s;
+
+  /* 关节（膝/肘）：球体 + 高光（不描边，避免与肢体描边叠成黑环） */
+  const joint = (x, y, r, fill) => {
+    const g = ctx.createRadialGradient(x - r*.4, y - r*.45, r*.1, x, y, r);
+    g.addColorStop(0, lt(fill, .30));
+    g.addColorStop(1, dk(fill, .18));
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fillStyle = g; ctx.fill();
+  };
+
+  /* 腿：髋 → 膝 → 踝；道裤宽松、护胫、脚背护垫、赤足趾 */
+  const drawLeg = (hipX, kneeA, shinA, cIn, skinC, far) => {
+    const THIGH = 24*s, SHIN = 23*s;
+    const kx = hipX*s - Math.sin(kneeA)*THIGH, ky = HIP_Y + Math.cos(kneeA)*THIGH;
     const fa = kneeA + shinA;
-    const fx2 = kx - Math.sin(fa)*21*s, fy2 = ky + Math.cos(fa)*21*s;
-    capsule(hx*s, hipY, kx, ky, 13*s, 9.5*s, cIn);   // 大腿（道裤）
-    capsule(kx, ky, fx2, fy2, 10*s, 6*s, cIn);       // 小腿
-    // 膝关节球
-    ctx.beginPath(); ctx.arc(kx, ky, 3.2*s, 0, Math.PI*2);
-    ctx.fillStyle = cIn; ctx.fill();
-    ctx.strokeStyle = lineC; ctx.lineWidth = 1.2*s; ctx.stroke();
-    // 赤足（脚尖朝前）+ 脚背护垫
-    ctx.beginPath(); ctx.ellipse(fx2 + 3*s, fy2 + 1.2*s, 6*s, 3*s, 0, 0, Math.PI*2);
-    ctx.fillStyle = footC; ctx.fill();
-    ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(fx2 + 1.5*s, fy2 - 1.6*s, 4.2*s, 2.2*s, -.3, 0, Math.PI*2);
-    ctx.fillStyle = gear; ctx.fill();
-    return [fx2, fy2];
+    const ax = kx - Math.sin(fa)*SHIN, ay = ky + Math.cos(fa)*SHIN;
+
+    // 大腿（道裤，宽松 → 末端更宽）
+    limb(hipX*s, HIP_Y + 2*s, kx, ky, (far?11.4:12.6)*s, (far?9.0:9.8)*s, cIn, .26);
+    // 小腿（道裤下露出的腿）
+    limb(kx, ky, ax, ay, (far?8.6:9.4)*s, (far?6.4:7.0)*s, skinC, .30);
+    joint(kx, ky, 3.0*s, cIn);
+    // 护胫（主色，包住小腿中段）
+    limb(kx*0.72 + ax*0.28, ky*0.72 + ay*0.28, kx*0.28 + ax*0.72, ky*0.28 + ay*0.72,
+         (far?7.6:8.3)*s, (far?6.9:7.6)*s, far ? gearDk : gear, .22);
+
+    // 脚：脚踝 → 脚跟 → 脚掌（带脚尖）
+    const ang = fa * .55;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(-3.8*s, -2.1*s);
+    ctx.quadraticCurveTo(-5.4*s, 2.3*s, -1.9*s, 3.1*s);   // 脚跟
+    ctx.lineTo(6.5*s, 2.9*s);
+    ctx.quadraticCurveTo(8.4*s, 2.6*s, 8.2*s, 1.2*s);     // 脚尖
+    ctx.quadraticCurveTo(7.9*s, -1.0*s, 4.0*s, -2.1*s);
+    ctx.closePath();
+    ctx.fillStyle = skinC; ctx.fill();
+    ctx.strokeStyle = lineC; ctx.lineWidth = 1.4*s; ctx.stroke();
+    // 脚背护垫
+    ctx.beginPath();
+    ctx.ellipse(2.2*s, -1.4*s, 4.0*s, 2.1*s, -.1, 0, Math.PI*2);
+    ctx.fillStyle = far ? gearDk : gear; ctx.fill();
+    ctx.strokeStyle = lineC; ctx.lineWidth = 1*s; ctx.stroke();
+    // 脚趾分隔
+    ctx.strokeStyle = dk(skinC, .3); ctx.lineWidth = .7*s;
+    ctx.beginPath(); ctx.moveTo(5.5*s, 2.2*s); ctx.lineTo(6.0*s, -0.3*s); ctx.stroke();
+    ctx.restore();
+    return [ax, ay];
   };
-  const drawArm = (sx, upperA, foreA, cIn, fist) => {
-    const ex = sx*s - Math.sin(upperA)*12*s, ey = shY + 3*s + Math.cos(upperA)*12*s;
-    const fx2 = ex - Math.sin(foreA)*13*s, fy2 = ey + Math.cos(foreA)*13*s;
-    capsule(sx*s, shY + 3*s, ex, ey, 9.5*s, 6.8*s, cIn);   // 上臂
-    capsule(ex, ey, fx2, fy2, 7.5*s, 5*s, cIn);            // 前臂
-    ctx.beginPath(); ctx.arc(ex, ey, 2.6*s, 0, Math.PI*2);
-    ctx.fillStyle = cIn; ctx.fill();
-    ctx.strokeStyle = lineC; ctx.lineWidth = 1.1*s; ctx.stroke();
-    // 拳套（护手）
-    ctx.beginPath(); ctx.arc(fx2, fy2, 5*s, 0, Math.PI*2);
-    ctx.fillStyle = fist; ctx.fill();
-    ctx.strokeStyle = lineC; ctx.lineWidth = 1.3*s; ctx.stroke();
-    ctx.beginPath(); ctx.arc(fx2 - 1*s, fy2 - 1*s, 1.6*s, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+
+  /* 臂：肩 → 肘 → 拳；三角肌、前臂护具、握拳 */
+  const drawArm = (shX, upperA, foreA, cIn, fistC, far) => {
+    const UPPER = 13*s, FORE = 13*s;
+    const ex = shX*s - Math.sin(upperA)*UPPER, ey = SHO_Y + 3*s + Math.cos(upperA)*UPPER;
+    const fx2 = ex - Math.sin(foreA)*FORE, fy2 = ey + Math.cos(foreA)*FORE;
+
+    // 上臂（道服短袖 → 稍宽）
+    limb(shX*s, SHO_Y + 1*s, ex, ey, (far?8.4:9.2)*s, (far?6.1:6.7)*s, cIn, .28);
+    // 三角肌（肩帽）
+    ctx.beginPath(); ctx.arc(shX*s, SHO_Y + 2*s, (far?4.8:5.3)*s, 0, Math.PI*2);
+    ctx.fillStyle = dk(cIn, .12); ctx.fill();
+    // 前臂
+    limb(ex, ey, fx2, fy2, (far?6.4:7.1)*s, (far?4.9:5.4)*s, (far ? skinFar : skin), .30);
+    joint(ex, ey, 2.4*s, cIn);
+    // 前臂护具
+    limb(ex*0.7 + fx2*0.3, ey*0.7 + fy2*0.3, ex*0.35 + fx2*0.65, ey*0.35 + fy2*0.65,
+         (far?5.8:6.5)*s, (far?5.1:5.7)*s, far ? gearDk : gear, .22);
+    // 握拳
+    const fa2 = Math.atan2(fy2 - ey, fx2 - ex);
+    ctx.save();
+    ctx.translate(fx2, fy2);
+    ctx.rotate(fa2 - Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(-2.9*s, -3.0*s);
+    ctx.quadraticCurveTo(3.2*s, -4.0*s, 3.6*s, 0);
+    ctx.quadraticCurveTo(3.2*s, 4.0*s, -2.9*s, 3.0*s);
+    ctx.closePath();
+    ctx.fillStyle = fistC; ctx.fill();
+    ctx.strokeStyle = lineC; ctx.lineWidth = 1.35*s; ctx.stroke();
+    // 指节
+    ctx.strokeStyle = 'rgba(255,255,255,.34)'; ctx.lineWidth = 1*s;
+    ctx.beginPath(); ctx.moveTo(-1.2*s, -2.7*s); ctx.lineTo(2.2*s, -3.0*s); ctx.stroke();
+    ctx.restore();
   };
 
   // —— 手臂姿态（跆拳道实战架：肘内收、双拳护脸；踢击时摆臂平衡）——
@@ -1762,99 +2017,244 @@ function drawFighter(f, t, dt){
 
   // —— 绘制（踢击躯干倾斜 → 远端肢体 → 躯干 → 近端肢体，分层）——
   if(kickPose && kickPose.lean){
-    ctx.translate(0, hipY); ctx.rotate(kickPose.lean); ctx.translate(0, -hipY);
+    ctx.translate(0, HIP_Y); ctx.rotate(kickPose.lean); ctx.translate(0, -HIP_Y);
   }
-  // 远端臂（后臂）
-  drawArm(-5, backArm.u, backArm.f, clothFar, gearDk);
-  // 远端腿（后腿：大开立 + 微屈膝；踢击时支撑腿直立）
+
+  // 远端臂 / 远端腿（后侧，整体压暗一档制造纵深）
+  drawArm(-6, backArm.u, backArm.f, clothFar, gearDk, true);
   const support = kickPose ? 1 : 0;
-  drawLeg(-7, 0.30 - support*.18 - swing*.5, -0.52 + support*.35 + swing*.2, clothFar, skinFar);
+  drawLeg(-7, 0.30 - support*.18 - swing*.5, -0.52 + support*.35 + swing*.2, clothFar, skinFar, true);
 
-  // 躯干（白道服）+ V 领
-  ctx.fillStyle = cloth;
-  roundRect(-12*s, shY + 2*s, 24*s, hipY - shY - 2*s, 7*s);
-  ctx.strokeStyle = lineC; ctx.lineWidth = 1.6*s; ctx.stroke();
-  ctx.strokeStyle = clothDk; ctx.lineWidth = 1.8*s;
-  ctx.beginPath(); ctx.moveTo(-4*s, shY + 3*s); ctx.lineTo(0, shY + 14*s); ctx.lineTo(5*s, shY + 3*s); ctx.stroke();
-  // 护甲 hogu（前片，主色 + 高光 + 描边）
-  ctx.fillStyle = gear;
+  /* ---------- 躯干：道服 + 护甲 hogu ---------- */
+  // 躯干主体（从肩到髋的梯形，肩宽 > 髋宽）
   ctx.beginPath();
-  ctx.moveTo(1.5*s, shY + 5*s);
-  ctx.quadraticCurveTo(13*s, shY + 9*s, 12*s, shY + 25*s);
-  ctx.lineTo(10*s, hipY - 9*s);
-  ctx.quadraticCurveTo(4*s, hipY - 5*s, -0.5*s, hipY - 8*s);
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = lineC; ctx.lineWidth = 1.4*s; ctx.stroke();
-  // hogu 高光斜条
-  ctx.strokeStyle = gearHi; ctx.lineWidth = 2.2*s;
-  ctx.beginPath(); ctx.moveTo(3*s, shY + 11*s); ctx.lineTo(9.5*s, hipY - 12*s); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1*s;
-  ctx.beginPath(); ctx.moveTo(5*s, shY + 11*s); ctx.lineTo(11*s, hipY - 12*s); ctx.stroke();
-  // 腰带（AI 用段位色；玩家白带）+ 垂带
-  ctx.fillStyle = beltC;
-  ctx.fillRect(-12*s, hipY - 3.5*s, 24*s, 5*s);
-  ctx.strokeStyle = lineC; ctx.lineWidth = 1*s;
-  ctx.strokeRect(-12*s, hipY - 3.5*s, 24*s, 5*s);
-  // 垂带（随呼吸摆动）
-  const knotSw = Math.sin(t*3 + (f.side==='p'?0:1.4)) * .12;
-  ctx.save();
-  ctx.translate(-9*s, hipY + 1*s);
-  ctx.rotate(.35 + knotSw);
-  ctx.fillStyle = beltDk;
-  roundRect(-1.8*s, 0, 3.6*s, 15*s, 1.8*s);
-  ctx.restore();
-  ctx.save();
-  ctx.translate(-8*s, hipY + 1*s);
-  ctx.rotate(.75 + knotSw*.7);
-  ctx.fillStyle = beltC;
-  roundRect(-1.6*s, 0, 3.2*s, 12*s, 1.6*s);
-  ctx.strokeStyle = lineC; ctx.lineWidth = .8*s; ctx.stroke();
-  ctx.restore();
+  ctx.moveTo(-SHO_HW, SHO_Y + 1*s);
+  ctx.quadraticCurveTo(-SHO_HW - 1.5*s, SHO_Y + 9*s, -HIP_HW - 1*s, HIP_Y - 1*s);
+  ctx.lineTo(HIP_HW + 1*s, HIP_Y - 1*s);
+  ctx.quadraticCurveTo(SHO_HW + 1.5*s, SHO_Y + 9*s, SHO_HW, SHO_Y + 1*s);
+  ctx.quadraticCurveTo(0, SHO_Y - 3*s, -SHO_HW, SHO_Y + 1*s);
+  ctx.closePath();
+  const tg = ctx.createLinearGradient(-SHO_HW, 0, SHO_HW, 0);
+  tg.addColorStop(0,   lt(cloth, .16));      // 受光侧
+  tg.addColorStop(.40, cloth);
+  tg.addColorStop(1,   dk(cloth, .26));      // 背光侧
+  ctx.fillStyle = tg; ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1.6*s; ctx.stroke();
 
-  // 近端腿（前腿：踢击/stance）
+  // 道服门襟（交叠 V 领）
+  ctx.strokeStyle = dk(cloth, .22); ctx.lineWidth = 2.0*s;
+  ctx.beginPath();
+  ctx.moveTo(-4.4*s, SHO_Y + 2*s);
+  ctx.lineTo(0.4*s, SHO_Y + 16*s);
+  ctx.lineTo(5.6*s, SHO_Y + 2*s);
+  ctx.stroke();
+  ctx.strokeStyle = lt(cloth, .55); ctx.lineWidth = 1*s;
+  ctx.beginPath();
+  ctx.moveTo(-2.6*s, SHO_Y + 4*s);
+  ctx.lineTo(0.6*s, SHO_Y + 14*s);
+  ctx.stroke();
+
+  // 护甲 hogu（前片：包住躯干，上下有包边 + 中缝）
+  ctx.beginPath();
+  ctx.moveTo(0.2*s, SHO_Y + 6*s);
+  ctx.quadraticCurveTo(14.6*s, SHO_Y + 10*s, 13.6*s, SHO_Y + 27*s);
+  ctx.lineTo(11.4*s, HIP_Y - 8*s);
+  ctx.quadraticCurveTo(4.5*s, HIP_Y - 4*s, -0.6*s, HIP_Y - 7*s);
+  ctx.closePath();
+  const hg = ctx.createLinearGradient(0, SHO_Y + 6*s, 13*s, HIP_Y - 8*s);
+  hg.addColorStop(0, lt(gear, .24));
+  hg.addColorStop(.5, gear);
+  hg.addColorStop(1, dk(gear, .26));
+  ctx.fillStyle = hg; ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1.5*s; ctx.stroke();
+  // hogu 包边
+  ctx.strokeStyle = lt(gear, .5); ctx.lineWidth = 2.2*s;
+  ctx.beginPath();
+  ctx.moveTo(1.6*s, SHO_Y + 8.5*s);
+  ctx.quadraticCurveTo(13.4*s, SHO_Y + 12*s, 12.4*s, SHO_Y + 26*s);
+  ctx.stroke();
+  // 中缝与压线
+  ctx.strokeStyle = dk(gear, .22); ctx.lineWidth = 1.1*s;
+  ctx.beginPath();
+  ctx.moveTo(6.6*s, SHO_Y + 9*s); ctx.lineTo(5.6*s, HIP_Y - 8*s);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.lineWidth = .9*s;
+  ctx.beginPath();
+  ctx.moveTo(8.4*s, SHO_Y + 24*s); ctx.lineTo(7.4*s, HIP_Y - 8.5*s);
+  ctx.stroke();
+
+  // 腰带 + 结 + 两条垂带（随呼吸摆动）
+  ctx.fillStyle = beltC;
+  ctx.beginPath();
+  ctx.moveTo(-HIP_HW - 1*s, HIP_Y - 4.6*s);
+  ctx.lineTo(HIP_HW + 1*s, HIP_Y - 4.6*s);
+  ctx.lineTo(HIP_HW + 1*s, HIP_Y + 0.6*s);
+  ctx.lineTo(-HIP_HW - 1*s, HIP_Y + 0.6*s);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1*s; ctx.stroke();
+  ctx.fillStyle = lt(beltC, .35);
+  ctx.fillRect(-HIP_HW - 1*s, HIP_Y - 4.6*s, 2*(HIP_HW + 1*s), 1.1*s);
+  // 结
+  ctx.beginPath(); ctx.arc(1.5*s, HIP_Y - 2*s, 3.1*s, 0, Math.PI*2);
+  ctx.fillStyle = beltC; ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = .9*s; ctx.stroke();
+  const knotSw = Math.sin(t*3 + (f.side==='p'?0:1.4)) * .12;
+  for(const [bx, ba, len, col] of [[-5.5, .45, 16, beltDk], [-3.0, .95, 12.5, beltC]]){
+    ctx.save();
+    ctx.translate(bx*s, HIP_Y - 1*s);
+    ctx.rotate(ba + knotSw * (ba > .7 ? .7 : 1));
+    ctx.beginPath();
+    ctx.moveTo(-1.7*s, 0); ctx.lineTo(1.7*s, 0);
+    ctx.lineTo(1.2*s, len*s); ctx.lineTo(-1.2*s, len*s);
+    ctx.closePath();
+    ctx.fillStyle = col; ctx.fill();
+    ctx.strokeStyle = lineC; ctx.lineWidth = .8*s; ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ---------- 近端腿 ---------- */
   if(kickPose){
-    const foot = drawLeg(5, kickPose.kneeA, kickPose.shinA, cloth, skin);
-    // 踢击轨迹：记录脚的世界坐标
+    const foot = drawLeg(5, kickPose.kneeA, kickPose.shinA, cloth, skin, false);
     if(f.state==='kick'){
       const trail = (f.kickTrail = f.kickTrail || []);
-      trail.push({ x: f.x + foot[0]*f.face, y: GROUND - (f.y||0) + foot[1], life: .38 });
+      trail.push({ x: f.x + foot[0]*f.face, y: (f.y||0) - foot[1], life: .38 });
       if(trail.length > 26) trail.shift();
     }
   }
-  else drawLeg(6, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin);
+  else drawLeg(6, -0.22 + swing*.6, 0.30 - swing*.25, cloth, skin, false);
 
-  // 脖子（衔接头与躯干）
-  capsule(0, shY + 4*s, 0, headY + headR - 2*s, 7*s, 6*s, skinFar);
+  /* ---------- 脖子（短而结实） ---------- */
+  limb(0.2*s, SHO_Y + 3*s, 0.6*s, HEAD_Y + HEAD_RY - 1.4*s, 8.4*s, 7.6*s, skinFar, .40);
 
-  // 头（肤色）+ 护头（主色，前脸大开口）+ 眼（白底 + 瞳 + 剑眉）
-  ctx.beginPath(); ctx.arc(0, headY, headR, 0, Math.PI*2);
+  /* ---------- 头：颅骨 + 发 + 帽式护头 + 五官（3/4 侧脸） ---------- */
+  // 颅骨（后脑饱满、前脸略平）
+  ctx.beginPath();
+  ctx.ellipse(0.6*s, HEAD_Y, HEAD_RX*s, HEAD_RY*s, 0, 0, Math.PI*2);
   ctx.fillStyle = skin; ctx.fill();
-  ctx.strokeStyle = lineC; ctx.lineWidth = 1.6*s; ctx.stroke();
-  // 护头
-  ctx.beginPath();
-  ctx.arc(0, headY, headR + 2.8*s, Math.PI*.32, Math.PI*1.78);
-  ctx.arc(0, headY, headR - 1*s, Math.PI*1.78, Math.PI*.32, true);
-  ctx.closePath();
-  ctx.fillStyle = gear; ctx.fill();
   ctx.strokeStyle = lineC; ctx.lineWidth = 1.5*s; ctx.stroke();
-  // 护头高光
-  ctx.strokeStyle = gearHi; ctx.lineWidth = 1.8*s;
-  ctx.beginPath(); ctx.arc(0, headY, headR + .8*s, Math.PI*1.12, Math.PI*1.5); ctx.stroke();
-  // 眼睛（白底 + 瞳孔）+ 眉（出招/受击时更凶）
-  const rage = (f.state==='kick' || f.state==='attack' || f.freeze>0) ? 1 : 0;
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.ellipse(5*s, headY - .5*s, 3*s, 2.4*s, 0, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = lineC; ctx.lineWidth = .8*s; ctx.stroke();
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath(); ctx.arc(6*s, headY - .4*s, 1.3*s, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = lineC; ctx.lineWidth = 1.5*s;
+
+  // 头发：后脑到头顶一圈，护头下缘露出一截
   ctx.beginPath();
-  ctx.moveTo(2.2*s, headY - 4.6*s + rage*1.2*s);
-  ctx.lineTo(8*s, headY - 3.2*s - rage*.6*s);
+  ctx.ellipse(0.6*s, HEAD_Y, (HEAD_RX + 0.1)*s, (HEAD_RY + 0.1)*s, 0, Math.PI*1.06, Math.PI*1.94);
+  ctx.ellipse(0.6*s, HEAD_Y, (HEAD_RX - 2.4)*s, (HEAD_RY - 2.4)*s, 0, Math.PI*1.94, Math.PI*1.06, true);
+  ctx.closePath();
+  ctx.fillStyle = '#2b3444'; ctx.fill();
+
+  // 下颌线（拉出下巴）
+  ctx.beginPath();
+  ctx.moveTo(HEAD_RX*0.40*s, HEAD_Y + HEAD_RY*0.54*s);
+  ctx.quadraticCurveTo(HEAD_RX*1.02*s, HEAD_Y + HEAD_RY*0.86*s, HEAD_RX*0.14*s, HEAD_Y + HEAD_RY*1.0*s);
+  ctx.quadraticCurveTo(-HEAD_RX*0.72*s, HEAD_Y + HEAD_RY*0.86*s, -HEAD_RX*0.94*s, HEAD_Y + HEAD_RY*0.38*s);
+  ctx.strokeStyle = dk(skin, .24); ctx.lineWidth = 1.2*s; ctx.stroke();
+
+  /* 帽式护头：整圈外壳用 evenodd 挖出「脸部开口」，得到正面敞开、头顶与后脑全覆盖的帽壳
+     （比环带更耐看：小尺寸下也能读出「戴着头盔」而不是一圈光环） */
+  const OPEN_CX = (HEAD_RX*0.75)*s, OPEN_CY = HEAD_Y + HEAD_RY*0.45*s;
+  const OPEN_RX = HEAD_RX*0.78*s,  OPEN_RY = HEAD_RY*0.68*s;
+  const capOuter = () => ctx.ellipse(0.6*s, HEAD_Y, (HEAD_RX + 2.4)*s, (HEAD_RY + 2.4)*s, 0, 0, Math.PI*2);
+  const capHole  = () => ctx.ellipse(OPEN_CX, OPEN_CY, OPEN_RX, OPEN_RY, 0, 0, Math.PI*2);
+  const hgg = ctx.createLinearGradient(-HEAD_RX*s, HEAD_Y - HEAD_RY*s, HEAD_RX*s, HEAD_Y + HEAD_RY*s);
+  hgg.addColorStop(0, lt(gear, .36));
+  hgg.addColorStop(.5, gear);
+  hgg.addColorStop(1, dk(gear, .30));
+  ctx.beginPath(); capOuter(); capHole();
+  ctx.fillStyle = hgg; ctx.fill('evenodd');
+  // 外壳描边 + 开口包边
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1.5*s;
+  ctx.beginPath(); capOuter(); ctx.stroke();
+  ctx.beginPath(); capHole(); ctx.stroke();
+  // 帽壳受光压线
+  ctx.strokeStyle = lt(gear, .5); ctx.lineWidth = 1.6*s; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.ellipse(0.6*s, HEAD_Y, (HEAD_RX + 1.5)*s, (HEAD_RY + 1.5)*s, 0, -0.46*Math.PI, -0.86*Math.PI);
+  ctx.stroke();
+  // 开口上沿高光（强调「开脸」）
+  ctx.strokeStyle = lt(gear, .30); ctx.lineWidth = 1.1*s;
+  ctx.beginPath();
+  ctx.ellipse(OPEN_CX, OPEN_CY, OPEN_RX, OPEN_RY, 0, Math.PI*1.10, Math.PI*1.62);
   ctx.stroke();
 
-  // 近端臂（前臂）
-  drawArm(5, frontArm.u, frontArm.f, cloth, gear);
+  // 耳罩（贴颅骨，略暗，避免读成“耳机”）
+  ctx.beginPath();
+  ctx.ellipse((-HEAD_RX + 1.5)*s, HEAD_Y + 1.2*s, 2.4*s, 3.3*s, -.14, 0, Math.PI*2);
+  ctx.fillStyle = dk(gear, .22); ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1.1*s; ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse((-HEAD_RX + 1.5)*s, HEAD_Y + 1.2*s, 1.0*s, 1.6*s, -.14, 0, Math.PI*2);
+  ctx.strokeStyle = lt(gear, .28); ctx.lineWidth = .9*s; ctx.stroke();
+  // 下颌带：从耳罩下方绕到下巴底（走下巴之下，不横穿脸）
+  ctx.strokeStyle = dk(gear, .24); ctx.lineWidth = 1.7*s;
+  ctx.beginPath();
+  ctx.moveTo((-HEAD_RX + 2.8)*s, HEAD_Y + 4.2*s);
+  ctx.quadraticCurveTo(-0.6*s, HEAD_Y + (HEAD_RY + 2.2)*s, HEAD_RX*0.66*s, HEAD_Y + HEAD_RY*0.84*s);
+  ctx.stroke();
+
+  // —— 五官（全部落在脸部开口内） ——
+  const rage = (f.state==='kick' || f.state==='attack' || f.freeze>0) ? 1 : 0;
+  const kdFace = f.kd > 0;
+  // 远眼
+  ctx.beginPath(); ctx.ellipse(1.35*s, HEAD_Y + 1.4*s, 1.05*s, .85*s, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,.60)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(1.7*s, HEAD_Y + 1.5*s, .6*s, 0, Math.PI*2);
+  ctx.fillStyle = '#2b3a50'; ctx.fill();
+  // 近眼
+  ctx.beginPath();
+  if(kdFace){ ctx.moveTo(3.1*s, HEAD_Y + .8*s); ctx.lineTo(5.9*s, HEAD_Y + 2.0*s); ctx.lineTo(3.2*s, HEAD_Y + 2.6*s); ctx.closePath(); }
+  else ctx.ellipse(4.3*s, HEAD_Y + 1.5*s, 1.45*s, 1.15*s, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#ffffff'; ctx.fill();
+  ctx.strokeStyle = lineC; ctx.lineWidth = .7*s; ctx.stroke();
+  if(!kdFace){
+    ctx.beginPath(); ctx.arc(4.6*s, HEAD_Y + 1.6*s, .72*s, 0, Math.PI*2);
+    ctx.fillStyle = '#16233a'; ctx.fill();
+    ctx.beginPath(); ctx.arc(4.36*s, HEAD_Y + 1.3*s, .27*s, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fill();
+  }
+  // 眉（出招/受击更凶）
+  ctx.strokeStyle = '#2b3444'; ctx.lineWidth = 1.25*s; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(2.5*s, HEAD_Y + 0.1*s + rage*.7*s);
+  ctx.lineTo(5.6*s, HEAD_Y + 0.7*s - rage*.35*s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0.4*s, HEAD_Y + 0.5*s + rage*.6*s);
+  ctx.lineTo(2.1*s, HEAD_Y + 1.0*s);
+  ctx.stroke();
+  // 鼻（前缘小三角）
+  ctx.beginPath();
+  ctx.moveTo((HEAD_RX - 1.3)*s, HEAD_Y + 2.6*s);
+  ctx.lineTo((HEAD_RX - 2.5)*s, HEAD_Y + 4.0*s);
+  ctx.lineTo((HEAD_RX - 0.9)*s, HEAD_Y + 4.1*s);
+  ctx.closePath();
+  ctx.fillStyle = dk(skin, .22); ctx.fill();
+  // 嘴
+  ctx.strokeStyle = dk(skin, .48); ctx.lineWidth = 1.1*s;
+  ctx.beginPath();
+  if(kdFace || f.freeze > .12){
+    ctx.ellipse(3.5*s, HEAD_Y + 5.4*s, 1.4*s, 1.1*s, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#8a2135'; ctx.fill(); ctx.stroke();
+  } else {
+    ctx.moveTo(2.5*s, HEAD_Y + 5.2*s);
+    ctx.quadraticCurveTo(3.8*s, HEAD_Y + 5.9*s, 5.1*s, HEAD_Y + 5.1*s);
+    ctx.stroke();
+  }
+
+
+  /* ---------- 近端臂 ---------- */
+  drawArm(6, frontArm.u, frontArm.f, cloth, gear, false);
+
+  /* ---------- 轮廓光：统一给受光侧补一道冷光边缘 ---------- */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = isPlayer ? 'rgba(120,215,255,.30)' : 'rgba(255,150,170,.28)';
+  ctx.lineWidth = 2.1*s; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(0.6*s, HEAD_Y, HEAD_RX + 1.2*s, Math.PI*1.16, Math.PI*1.86);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-SHO_HW*0.86, SHO_Y + 2.5*s);
+  ctx.quadraticCurveTo(-SHO_HW - 1.2*s, SHO_Y + 10*s, -HIP_HW - 0.6*s, HIP_Y - 1.5*s);
+  ctx.stroke();
+  ctx.restore();
 
   // 旋风踢：脚下旋转光弧
   if(isSpinx){
@@ -1878,7 +2278,6 @@ function drawFighter(f, t, dt){
     ctx.moveTo(-34*s, -6*s); ctx.lineTo(0, 0);
     ctx.stroke();
   }
-
   ctx.restore();   // 结束朝向镜像
 
   // 踢击轨迹（世界坐标拖尾，渲染在镜像 restore 后）
@@ -1891,8 +2290,8 @@ function drawFighter(f, t, dt){
       ctx.strokeStyle = f.side==='p' ? 'rgba(125,237,255,1)' : 'rgba(255,157,176,1)';
       ctx.lineWidth = (1 + 4.5*k)*s;
       ctx.beginPath();
-      ctx.moveTo(tp0.x - f.x, tp0.y - GROUND + (f.y||0));
-      ctx.lineTo(tp.x - f.x, tp.y - GROUND + (f.y||0));
+      ctx.moveTo(tp0.x - f.x, (f.y||0) - tp0.y);
+      ctx.lineTo(tp.x - f.x, (f.y||0) - tp.y);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -1902,7 +2301,7 @@ function drawFighter(f, t, dt){
   for(const pt of f.particle){
     ctx.globalAlpha = clamp(pt.life/pt.max, 0, 1);
     ctx.fillStyle = pt.color;
-    ctx.beginPath(); ctx.arc(pt.x - f.x, pt.y - GROUND + (f.y||0), pt.r*s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x - f.x, (f.y||0) - pt.y, pt.r*s, 0, Math.PI*2); ctx.fill();
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -1918,7 +2317,7 @@ function drawFx(){
     ctx.strokeStyle = r.color;
     ctx.lineWidth = r.lw*s*(1-k*.6);
     ctx.beginPath();
-    ctx.ellipse(r.x, r.y, (r.r0 + (r.r1-r.r0)*ease(k))*s, (r.r0 + (r.r1-r.r0)*ease(k))*.62*s, 0, 0, Math.PI*2);
+    ctx.ellipse(r.x, -r.y, (r.r0 + (r.r1-r.r0)*ease(k))*s, (r.r0 + (r.r1-r.r0)*ease(k))*.62*s, 0, 0, Math.PI*2);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
@@ -1927,7 +2326,7 @@ function drawFx(){
     const k = sp.life/sp.dur;
     const R0 = (sp.big ? 34 : 20) * (0.4 + 0.6*k) * s;
     ctx.save();
-    ctx.translate(sp.x, sp.y);
+    ctx.translate(sp.x, -sp.y);   // 世界坐标：高度向上
     ctx.rotate(sp.ang);
     ctx.globalAlpha = k;
     // 放射细线
@@ -1961,7 +2360,7 @@ function drawFx(){
 let comboPopT = 0, lastCombo = 0;
 function drawHUD(t){
   const rank = R();
-  const s = SCALE();
+  const s = UI();   // HUD 用视口比例，不受相机推拉影响
   const barW = Math.min(W*.36, 430), barH = 21, y = 26;
   const skew = 12;
 
@@ -2158,16 +2557,16 @@ function drawHUD(t){
     ctx.restore();
   }
 
-  // 世界层特效（飘分等，最上层）
+  // 世界层特效（飘分等，投影到屏幕后绘制，保证在最上层且清晰）
   for(const ft of floats){
     const k = clamp(ft.life/ft.dur, 0, 1);
     ctx.globalAlpha = Math.min(1, k*2.2);
     ctx.font = fnt(900, ft.size*s);
     ctx.textAlign='center';
     ctx.strokeStyle = 'rgba(7,10,20,.75)'; ctx.lineWidth = 4*s;
-    ctx.strokeText(ft.text, ft.x, ft.y);
+    ctx.strokeText(ft.text, projX(ft.x), projY(ft.y));
     ctx.fillStyle = ft.color;
-    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.fillText(ft.text, projX(ft.x), projY(ft.y));
   }
   ctx.globalAlpha = 1;
 }
@@ -2290,17 +2689,23 @@ function frame(ts){
   if(slowT > 0){ slowT -= dt; dtSim = dt * .35; }
   try {
     update(dtSim, t);
+    updateCam(dt);
+
+    // ① 远景场馆（屏幕空间 + 视差 + 体积光锥）
+    drawHall(t);
+    // ② 地面基色（纯竖直渐变，屏幕空间）
+    drawFloorBase(t);
+    // ③ 世界层：统一经相机变换（震屏已并入 CAM，HUD 不受影响）
     ctx.save();
-    if(shakeT > 0){
-      const k = shakeT / shakeDur;
-      ctx.translate(rand(-1,1)*shakeAmp*k, rand(-1,1)*shakeAmp*k);
-    }
-    drawGround(t);
+    camApply();
+    drawArena(t);
+    drawShadows();
     // 绘制顺序：AI 在前、玩家在后（保证视觉层次）
     if(ai.x > player.x){ drawFighter(player, t, dt); drawFighter(ai, t, dt); }
     else { drawFighter(ai, t, dt); drawFighter(player, t, dt); }
     drawFx();
     ctx.restore();
+    // ④ HUD（屏幕空间）
     drawHUD(t);
     // KO 白闪（全屏，HUD 之下）
     if(flashA > 0){
@@ -2312,7 +2717,7 @@ function frame(ts){
       state.overTimer -= dt;
       if(state.overTimer<=0){ state.overTimer=0; afterRound(); }
     }
-  } catch(e){ /* 单帧异常不中断游戏 */ }
+  } catch(e){ window.__lastErr = (e && e.stack) || String(e); }
 }
 let lastRafT = 0;
 function loop(ts){
