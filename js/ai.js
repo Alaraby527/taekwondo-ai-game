@@ -83,7 +83,7 @@ function aiThink(dt, t){
 
     if(airThreat && incoming && dist < 220){
       if(skill >= 0.8){
-        /* 高段位：不与后撤，起跳阶段直接对拼偷伤害 */
+        /* 高段位：不后撤，起跳阶段直接对拼偷伤害 */
         if(f.canAct() && dist < 185){
           f.thinkT = rand(.14, .24);
           if(Math.random() < 0.72) tryKick(f);          // 横踢迎击，判定够长
@@ -92,7 +92,8 @@ function aiThink(dt, t){
         } else {
           f.targetVx = guardOut(wantFace * 120);        // 够不着就先贴近
         }
-      } else if(Math.random() < react * 0.7 || edgeNear){
+      } else if(Math.random() < react * 0.28 || edgeNear){
+        // 削弱对飞踢的格挡：大幅降低各段位直接格挡飞踢的概率（0.7 -> 0.28），让飞踢更容易命中得分
         f.state = 'block'; f.holdBlock = true; f.cool = Math.max(f.cool, .3);
         simLater(() => { if(f.state==='block'){ f.state='idle'; f.holdBlock = false; } }, .4);
         f.targetVx = 0;
@@ -225,11 +226,14 @@ function aiThink(dt, t){
       else { f.targetVx = -wantFace * rand(60,140); }
     }
     // 格挡反应：玩家出招中，或 Jev 预判对手即将出腿
-    // 仅高段位具备高概率预判格挡，低段位格挡率大幅降低（给新手破防成就感）
+    // 增加对后踢的格挡：若玩家正处于后踢(back)前摇，属于转身旋转大招，AI 警惕性大幅提高
+    const isBackKick = (p.cast === 'back' || (p.recentActs && p.recentActs[p.recentActs.length-1] === 'back'));
+    const backBonus = isBackKick ? (0.45 + skill * 0.45) : 0; // 后踢格挡大幅加成
+
     const baseBlockSkill = Math.max(0, skill - 0.35);
-    const blockP = baseBlockSkill * 0.85 + bias.block + jKickRisk * (skill >= 0.7 ? 0.35 : 0.15);
+    const blockP = baseBlockSkill * 0.85 + bias.block + jKickRisk * (skill >= 0.7 ? 0.35 : 0.15) + backBonus;
     const incoming = (p.state==='attack' || p.state==='kick');
-    if(dist < 150 && Math.random() < blockP && (incoming || (skill >= 0.7 && jKickRisk > .6))){
+    if(dist < 165 && Math.random() < blockP && (incoming || isBackKick || (skill >= 0.7 && jKickRisk > .6))){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
       simLater(() => { if(f.state==='block') f.state='idle'; }, .35);
     }
