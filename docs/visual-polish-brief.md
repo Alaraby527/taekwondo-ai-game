@@ -7,14 +7,23 @@
 
 ## 0. 先跑起来（5 分钟）
 
-```bash
-cd /workspaces/taekwondo-ai-game
-# 仓库内自带一个极简静态服务（容器里没有 python3/node/curl，只有 busybox）
-sh /workspaces/tmp/serve.sh /workspaces/taekwondo-ai-game 8777     # 若已在跑可跳过
-# 浏览器打开：
-#   http://localhost:8777/?vw=1100&vh=620     横屏取景
-#   http://localhost:8777/?vw=414&vh=896      竖屏取景（电影黑边 band）
+**最省事**：直接开已部署的地址，游戏 + AI + 埋点全都在，零配置
+
 ```
+http://192.168.5.21:15810/?vw=1100&vh=620     横屏取景
+http://192.168.5.21:15810/?vw=414&vh=896      竖屏取景（电影黑边 band）
+```
+
+**纯静态预览**（不需要代理时）：
+
+```bash
+# 仓库里没有 python3/node/curl，只有 busybox，所以用自带的极简静态服务
+sh /workspaces/tmp/serve.sh /workspaces/taekwondo-ai-game 8777
+# 然后 http://localhost:8777/  （8777 只在容器内监听，未发布到局域网）
+```
+
+> 做视觉精修时建议加 `?jev=off`：关掉战术层后 AI 行为变成纯本地、**可复现**，便于前后对比截图。
+> 否则 AI 由 Jev 驱动，每局行为都不同，截图对比会失去意义。
 
 **不要直接改 `index.html` 里的样式来验证**——先看下面的调试开关，它们能让你在半分钟内截到想看的画面。
 
@@ -23,7 +32,9 @@ sh /workspaces/tmp/serve.sh /workspaces/taekwondo-ai-game 8777     # 若已在�
 | 开关 | 作用 |
 |---|---|
 | `?vw=1100&vh=620` | 强制逻辑视口尺寸（横竖屏取景校验；不改窗口大小也能测） |
-| `?jev=<url>` | 覆盖 Jev 代理地址（视觉任务用不到，忽略即可） |
+| `?jev=off` | **关闭 Jev 战术层** → AI 行为变成纯本地、可复现（做前后对比截图时建议加上） |
+| `?track=off` | 关闭埋点上报 |
+| `?jev=<url>` | 覆盖 Jev 代理地址 |
 | `window.__pause = true` | 冻结模拟但保留绘制 → 摆任意姿势截图 |
 | `window.__camOverride = {x, y, z}` | 锁定相机位置与缩放 → 特写/取景出图 |
 | `window.__lastErr` | 帧循环内部捕获的异常堆栈（帧循环是 try/catch 的，**报错不会弹出来，一定要查这个**） |

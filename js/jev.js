@@ -8,9 +8,11 @@
    不可用时（没网 / 反代未配 / 超预算 / 超时）自动退回纯本地 AI，游戏永远能玩。 */
 
 /* 代理地址解析顺序：?jev=<url> → <meta name="jev-base"> → 同源
-   反代配好后，把地址填到 index.html 的 <meta name="jev-base"> 即可。 */
+   反代配好后，把地址填到 index.html 的 <meta name="jev-base"> 即可。
+   特例：?jev=off 显式关闭战术层，用于 A/B 对比（不依赖"请求失败"来降级） */
 const JEV_BASE = (() => {
   const q = new URLSearchParams(location.search).get('jev');
+  if(q === 'off') return '';
   const meta = document.querySelector('meta[name="jev-base"]');
   const m = meta && meta.getAttribute('content');
   const raw = (q || m || (location.protocol.startsWith('http') ? location.origin : '')).trim();

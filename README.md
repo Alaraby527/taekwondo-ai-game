@@ -102,11 +102,31 @@ const projY = wy => GROUND + CAM.shakeY - (wy - CAM.y) * CAM.zoom;
 
 ## 本机预览
 
-```bash
-cd taekwondo-ai-game
-python3 -m http.server 8777
-# 浏览器打开 http://localhost:8777
+**推荐（已部署，一个地址什么都全）**：
+
 ```
+http://192.168.5.21:15810/
+```
+
+Jev 代理容器会**同源托管**本游戏，所以游戏、AI 战术层、埋点全部开箱可用，无需任何配置；手机连同一局域网直接访问即可。
+
+**纯静态预览**（没有代理时，例如做纯视觉工作或离线演示）：
+
+```bash
+# 容器里没有 python3 / node / curl，只有 busybox，所以自带一个 nc 实现的极简静态服务
+sh /workspaces/tmp/serve.sh /workspaces/taekwondo-ai-game 8777
+# 容器内：http://localhost:8777/
+# 注意：8777 只在容器内监听，未发布到局域网；
+#       若需从别的机器访问，要么发布端口，要么直接用上面的 15810
+```
+
+**A/B 对比 Jev 战术层是否生效**（同一地址加参数即可，不依赖"请求失败"来降级）：
+
+| 地址 | 效果 |
+|---|---|
+| `http://192.168.5.21:15810/` | Jev 驱动（AI 会选战术、预判你出腿） |
+| `http://192.168.5.21:15810/?jev=off` | 纯本地 AI（显式关闭战术层） |
+| `http://192.168.5.21:15810/?track=off` | 关闭埋点 |
 
 ## 游戏操作
 

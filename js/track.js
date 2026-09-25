@@ -7,9 +7,11 @@
    2) 任何失败都静默忽略 —— 埋点绝不允许影响游戏 */
 
 const TRACK_BASE = (() => {
+  const q = new URLSearchParams(location.search).get('track');
+  if(q === 'off') return '';
   const meta = document.querySelector('meta[name="track-base"]');
   const m = meta && meta.getAttribute('content');
-  const raw = (m || (typeof JEV_BASE !== 'undefined' ? JEV_BASE : '') ||
+  const raw = (q || m || (typeof JEV_BASE !== 'undefined' ? JEV_BASE : '') ||
                (location.protocol.startsWith('http') ? location.origin : '')).trim();
   return raw.replace(/\/+$/, '');
 })();
