@@ -36,7 +36,13 @@ services:
       ALLOW_ORIGIN: "*"
       SERVE_SITE: "1"
       SITE_DIR: "/site"
+      TRACK_ENABLED: "1"          # 复用本服务收集招新漏斗埋点
+      TRACK_FILE: "/data/events.jsonl"
     ports:
       - "15810:15810"             # 摊位用 http://<NAS-IP>:15810/ 同时拿到游戏与 AI
     volumes:
+      # volumes 的 bind 源由【宿主机 daemon】使用，因此必须是宿主机绝对路径 /vol1/...
+      # （踩过的坑：写成相对路径 ./data 时，compose 客户端会按容器内路径解析再传给 daemon，
+      #   结果 daemon 在宿主机根目录新建了一个 /workspaces/... 目录）
       - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game:/site:ro
+      - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy/data:/data

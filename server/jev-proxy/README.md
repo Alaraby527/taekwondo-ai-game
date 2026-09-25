@@ -85,7 +85,17 @@ cd /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy
 /cli/docker exec second-eye python -c "import urllib.request,json;print(json.load(urllib.request.urlopen('http://192.168.5.21:15810/health')))"
 ```
 
-> `compose.yml` 里的 `build.context` / `volumes` / `env_file` 都由**宿主机 Docker daemon** 解析，因此必须是宿主机绝对路径 `/vol1/...`；容器内的 `/nas/vol1/...` 在这里无效。
+> `compose.yml` 里的路径规则**分两类，搞反会出错**：
+>
+> | 配置项 | 由谁解析 | 必须用 |
+> |---|---|---|
+> | `volumes`（bind 源） | **宿主机 daemon** | 宿主机绝对路径 `/vol1/...` |
+> | `env_file` | **compose 客户端**（容器内） | 相对路径 `./.env` |
+> | `build.context` | **compose 客户端**（本机无 buildx，回退传统构建器） | 相对路径 `.` |
+>
+> 容器内看不到 `/vol1`，所以 `env_file`/`build.context` 用绝对路径会报 `not found`；
+> 反之 `volumes` 用相对路径时，客户端会按**容器内**路径解析再交给 daemon，
+> daemon 会在**宿主机根目录**新建一个同名目录（曾误建出 `/workspaces/...`）。
 
 ## 配置项
 

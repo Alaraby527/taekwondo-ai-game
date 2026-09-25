@@ -44,23 +44,29 @@ taekwondo-ai-game/
 │   ├── input.js          # 键盘 / 触屏输入、竖屏提示
 │   ├── fx.js             # 特效池（星芒 / 冲击环 / 飘分 / 浮尘）
 │   ├── fighter.js        # Fighter 类与战斗判定（WT 得分 / 读秒 / 击倒）
-│   ├── ai.js             # AI 大脑（本地反射层，后续接 Jev 战术层）
-│   ├── update.js         # 主更新：物理、出界判罚、回合计时
-│   ├── round.js          # 回合流程与段位晋级
+│   ├── jev.js            # Jev 战术层客户端（可选增强，不可用自动降级）
+│   ├── track.js          # 招新漏斗埋点（复用代理 /track，text/plain 绕开预检）
+│   ├── persist.js        # 段位持久化（localStorage）
+│   ├── ai.js             # AI 反射层：把战术意图换算为行为权重偏置
+│   ├── update.js         # 主更新：物理、出界判罚、回合计时、行为统计
+│   ├── round.js          # 回合流程、赛制（速战/正式赛）与段位晋级
 │   ├── scene.js          # 场景绘制：远景场馆 / 地面 / 擂台 / 接触阴影
 │   ├── render-fighter.js # 选手绘制（体积化 rig）
 │   ├── render-fx.js      # 世界特效绘制
 │   ├── hud.js            # HUD 绘制
-│   ├── loop.js           # 帧循环与兜底驱动
-│   └── main.js           # 页面控制与启动
+│   ├── loop.js           # 帧循环、电影黑边 band 裁切、兜底驱动
+│   └── main.js           # 页面控制、引导页、启动
+├── docs/
+│   └── visual-polish-brief.md  # 视觉精修任务书（可脱离上下文独立执行）
+├── server/
+│   └── jev-proxy/        # Jev 战术代理 + 埋点收集（Dockerfile / compose / README）
 ├── qr-douyin.png / qr-tkd.png   # 两处二维码图片（引导页 + 结束面板共用）
 ├── shots/       # 开发期角色渲染调试截图（早期版本，已过期，可删）
 ├── v0-prompt.md # 备用：v0.app 生成提示词（未采用，留档）
 └── README.md
 ```
 
-> **为什么是多个 classic `<script>` 而不是 ES Module**：所有脚本共享同一全局作用域，**无需任何构建**，也仍然可以直接双击 `index.html` 用 `file://` 打开运行（摊位离线场景很关键）。引入 `type="module"` 会让 `file://` 直接打开失效。
->
+> **为什么是多个 classic `<script>` 而不是 ES Module**：所有脚本共享同一全局作用域，**无需任何构建**，也仍然可以直接双击 `index.html` 用 `file://` 打开运行（摊位离线场景很关键）。引入 `type="module"` 会让 `file://` 直接打开失效。>
 > 纯前端、零后端、零依赖，任何静态托管都能跑。**替换二维码**：直接覆盖 `qr-douyin.png`（抖音校园 WowLand 活动群）和 `qr-tkd.png`（跆拳道社微信群）两张图即可，建议白底正方形、边长 500px 以上。
 
 ## 渲染架构（视觉底座）
@@ -218,6 +224,39 @@ AI 对手的「战术」由一个真实 AI 服务（TypeSafe Jev）决定，而�
 3. 同源（默认）
 
 代理的部署、接口、成本闸门与性能数据见 **`server/jev-proxy/README.md`**。
+
+## 招新转化链路
+
+目标是「招到新人」，所以除了游戏本身，还需要**可度量**与**可回访**：
+
+### 埋点（无需额外后端）
+
+复用 Jev 代理新增的 `/track` 端点收集漏斗，**不需要再起一个后端**：
+
+```
+landing_view → start_game → round_end → match_end → match_win / match_lose
+```
+
+- 端点：`POST /track`（追加 JSONL）、`GET /stats`（按事件聚合，可直接看漏斗）
+- 数据落在 `server/jev-proxy/data/events.jsonl`
+- 前端 `js/track.js`：**用 `text/plain` 发送**（CORS 安全列表内类型 → **完全绕开预检**，省一次往返且不依赖服务端 OPTIONS 实现）
+- **失败静默忽略**，埋点绝不影响游戏
+- 地址解析：`<meta name="track-base">` → 跟随 `jev-base` → 同源
+
+**隐私**：默认**不记录客户端 IP**（校园活动可能涉及未成年，IP 属个人信息）。服务端还会丢弃前端误传的 `ua`/`referer`/`email`/`phone`/`name`。确有需要时用 `TRACK_STORE_IP=1` 显式打开。
+
+### 段位持久化（原先完全缺失）
+
+`js/persist.js` 用 `localStorage` 存 `rankIdx` / `winStreak` / 访问与对局计数。
+
+这里有个**设计张力**：摊位是**共用设备**，上一个人的进度不该留给下一个人；但分享链接的**家庭用户**希望下次回来能接着打。所以：
+
+| 入口 | 语义 |
+|---|---|
+| 「开始挑战 AI」 | **全新开始**（摊位语义：速战 + 白带起） |
+| 「继续上次 · X带」 | **恢复进度**（家庭用户语义；有存档时才露出，且直接进入正式赛） |
+
+`resetSession()` 挂在「开始挑战」上，所以共用设备不会互相污染；存档只在「继续上次」被显式消费。
 
 ## 已知事项
 

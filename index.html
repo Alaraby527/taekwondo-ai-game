@@ -6,6 +6,8 @@
 <!-- Jev 战术代理地址：留空＝同源（代理自身托管本页，或反向代理把 API 与页面放在同一源）。
      反代配好后把 https 地址填在这里即可，例如 https://tkd.example.com -->
 <meta name="jev-base" content="">
+<!-- 埋点端点：留空＝跟随 jev-base / 同源。复用同一个代理，不需要额外后端 -->
+<meta name="track-base" content="">
 <title>跆拳道 · AI 对战 | 抖音校园 WowLand</title>
 <meta name="description" content="上海理工大学 · 跆拳道社 × AI：操控选手挑战 AI 跆拳道高手，五局三胜 KO 制！感受 AI 与跆拳道的双重魅力。">
 <style>
@@ -373,6 +375,7 @@
 
     <div class="cta-zone">
       <button class="btn btn-primary" id="btn-start">开始挑战 AI</button>
+      <button class="btn btn-ghost sm hidden" id="btn-continue">继续上次</button>
       <div class="cta-note">速战单局 30 秒 · 赢了解锁五局三胜 · WT 得分制 · 击倒后 8 秒读秒 KO</div>
     </div>
 
@@ -462,6 +465,8 @@
 <script src="js/fx.js"></script>
 <script src="js/fighter.js"></script>
 <script src="js/jev.js"></script>
+<script src="js/track.js"></script>
+<script src="js/persist.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/update.js"></script>
 <script src="js/round.js"></script>

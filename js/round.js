@@ -7,6 +7,7 @@
    quickMode=false ：正式赛——五局三胜、60 秒、原血量（速战获胜后解锁） */
 function WIN_NEED(){ return quickMode ? 1 : 3; }
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
+let matchRecorded = false;    // 防止同一场对局被记录两次（末段位胜利会二次进入 gameOver）
 function startRound(){
   const hp = Math.round(R().hp * (quickMode ? .65 : 1));
   player.reset(hp); ai.reset(hp);
@@ -17,6 +18,7 @@ function startRound(){
   player.x = -off; ai.x = off;
   player.face = 1; ai.face = -1;
   player.roundDone = false; ai.roundDone = false;
+  matchRecorded = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
   state.intro = quickMode ? 2.4 : 3.2;  // 开局倒计时（双方冻结）
@@ -30,6 +32,10 @@ function startRound(){
 function endRound(){
   state.mode = STATE.over; state.overTimer = 1.6;
   state.count = null;
+  track('round_end', {
+    round: roundNum, mode: quickMode ? 'quick' : 'match',
+    scoreP, scoreA, roundWins, aiWins, timeLeft: Math.round(state.roundTime)
+  });
 }
 function afterRound(){
   if(roundWins >= WIN_NEED()){ gameOver(true); return; }
@@ -82,6 +88,15 @@ function gameOver(win){
   $('stW').textContent = state.winStreak;
   panel.classList.add('show');
   sfx(win ? 'win' : 'lose', .5);
+  /* 记录对局结果 + 持久化段位（只记一次；末段位胜利会二次进入 gameOver） */
+  if(!matchRecorded){
+    matchRecorded = true;
+    track('match_end', {
+      win, rank: R().name, mode: quickMode ? 'quick' : 'match',
+      roundWins, aiWins, need, promoted: canPromote, final: isFinal
+    });
+    if(typeof recordResult === 'function') recordResult(win, roundWins, need);
+  }
 }
 function nextRank(){
   const won = roundWins >= WIN_NEED();
@@ -95,6 +110,8 @@ function nextRank(){
     }
     /* 速战获胜 → 解锁正式赛（五局三胜） */
     quickMode = false;
+    /* 持久化：段位推进（家庭用户下次可「继续上次」） */
+    if(typeof SAVE !== 'undefined'){ SAVE.rankIdx = rankIdx; writeSave(); }
   } else {
     state.winStreak = 0;
   }

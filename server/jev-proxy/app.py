@@ -38,6 +38,13 @@ LOG = os.environ.get("LOG_LEVEL", "info").lower() == "info"
 MAX_CALLS_PER_DAY = int(os.environ.get("MAX_CALLS_PER_DAY", "3000"))   # 全局每日调用上限
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
+# 埋点：复用本服务收集漏斗数据，避免再起一个后端
+TRACK_ENABLED = os.environ.get("TRACK_ENABLED", "1") == "1"
+TRACK_FILE = os.environ.get("TRACK_FILE", "/data/events.jsonl")
+# 默认不记录客户端 IP：校园活动可能涉及未成年，存 IP 属于个人信息。
+# 漏斗分析用 sid 就够了；确有需要时再显式打开。
+TRACK_STORE_IP = os.environ.get("TRACK_STORE_IP", "0") == "1"
+
 # 同源托管游戏静态文件：这样前端与 /decide 同源，
 # 既没有 CORS 问题，也不会有「HTTPS 页面调用 HTTP 接口」的 mixed content 拦截。
 SITE_DIR = os.environ.get("SITE_DIR", "/site")
@@ -99,6 +106,54 @@ def init_client():
 def log(msg):
     if LOG:
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+# ---------------------------------------------------------------- 埋点
+_track_lock = threading.Lock()
+
+
+def track_append(evt):
+    """把事件追加成一行 JSONL。失败只记日志，绝不影响调用方。"""
+    if not TRACK_ENABLED:
+        return False
+    try:
+        os.makedirs(os.path.dirname(TRACK_FILE) or ".", exist_ok=True)
+        line = json.dumps(evt, ensure_ascii=False, separators=(",", ":"))
+        with _track_lock:
+            with open(TRACK_FILE, "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        return True
+    except Exception as exc:                    # noqa: BLE001
+        log(f"埋点写入失败（忽略）：{exc}")
+        return False
+
+
+def track_stats():
+    """按事件名统计漏斗。数据量级很小（校团活动），全量读入即可。"""
+    counts, sessions, days = {}, set(), {}
+    if not os.path.isfile(TRACK_FILE):
+        return {"events": 0, "counts": {}, "sessions": 0, "days": {}}
+    try:
+        with open(TRACK_FILE, "r", encoding="utf-8") as fh:
+            for raw in fh:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    e = json.loads(raw)
+                except ValueError:
+                    continue
+                name = e.get("event") or "?"
+                counts[name] = counts.get(name, 0) + 1
+                if e.get("sid"):
+                    sessions.add(e["sid"])
+                d = (e.get("ts") or "")[:10]
+                if d:
+                    days[d] = days.get(d, 0) + 1
+    except OSError as exc:
+        return {"error": str(exc)}
+    return {"events": sum(counts.values()), "counts": counts,
+            "sessions": len(sessions), "days": days}
 
 
 # ---------------------------------------------------------------- 状态 → 提示词
@@ -298,12 +353,17 @@ class Handler(BaseHTTPRequestHandler):
                 "tactics": list(TACTICS),
                 "site": SITE_DIR if SERVE_SITE else None,
             })
-        elif SERVE_SITE and not self.path.startswith("/decide"):
+        elif self.path.startswith("/stats"):
+            self._send(200, track_stats())
+        elif SERVE_SITE and not self.path.startswith("/decide") and not self.path.startswith("/track"):
             self._serve_site()
         else:
             self._send(404, {"error": "not found"})
 
     def do_POST(self):                                      # noqa: N802
+        if self.path.startswith("/track"):
+            self._handle_track()
+            return
         if not self.path.startswith("/decide"):
             self._send(404, {"error": "not found"})
             return
@@ -323,6 +383,29 @@ class Handler(BaseHTTPRequestHandler):
             return
         payload, _src = decide(state)
         self._send(200, payload)                            # 始终 200：降级也走正常响应
+
+    def _handle_track(self):
+        if ALLOWED_ORIGINS:
+            origin = (self.headers.get("Origin") or "").rstrip("/")
+            if origin not in ALLOWED_ORIGINS:
+                self._send(403, {"error": "origin not allowed"})
+                return
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            evt = json.loads((self.rfile.read(n) if n else b"{}").decode("utf-8") or "{}")
+        except Exception as exc:                            # noqa: BLE001
+            self._send(400, {"error": f"bad json: {exc}"})
+            return
+        if not isinstance(evt, dict):
+            evt = {"event": "?"}
+        evt.setdefault("ts", time.strftime("%Y-%m-%dT%H:%M:%S"))
+        if TRACK_STORE_IP:
+            evt.setdefault("ip", self.client_address[0])
+        # 丢弃前端可能误传的敏感字段，只保留白名单内的键
+        evt = {k: v for k, v in evt.items()
+               if k not in ("ua", "referer", "email", "phone", "name")}
+        track_append(evt)
+        self._send(200, {"ok": True})
 
     def log_message(self, *args):                           # 静默默认访问日志
         pass
