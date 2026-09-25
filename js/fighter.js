@@ -28,6 +28,8 @@ class Fighter {
     this.cyc = 0;                             // 旋风踢旋转角（绘制用）
     this.flyKick = false;                     // 飞踢标记
     this.rise = 0; this.riseSpeed = 0;        // 读秒起身进度 / 速率
+    this.riseT = 0; this.riseBoost = 1;       // 起身已用时间 / 狂按加速倍率
+    this.invuln = 0;                          // 起身后的无敌时间（秒）
     this.pops = [];                           // 命中飘分（+1/+2/+3）
     this.spinP = 0;                           // 旋风踢：已转过的角度（度）
     this.spinDir = 1;                         // 旋风踢：旋转方向（绕身体纵轴）
@@ -37,7 +39,7 @@ class Fighter {
     this.lastPt = 0; this.lastPtT = 0;        // 最近命中得分
     this.kickTrail = [];                      // 踢击轨迹（脚部拖尾）
   }
-  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.kdCount=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; }
+  reset(hp){ this.hp = hp; this.maxHp = hp; this.state='idle'; this.stT=0; this.freeze=0; this.kd=0; this.kdCount=0; this.flash=0; this.cool=0; this.particle=[]; this.holdBlock=false; this.jumpV=0; this.jumpH=0; this.airborne=false; this.y=0; this.combo=0; this.comboT=0; this.kickBuf=[]; this.kickBufT=0; this.cast=''; this.castT=0; this.flyKick=false; this.rise=0; this.riseSpeed=0; this.pops=[]; this.spinP=0; this.spinDir=1; this.stepBack=0; this.windup=0; this.phase=0; this.lastPt=0; this.lastPtT=0; this.kickTrail=[]; this._dust=false; this.riseT=0; this.riseBoost=1; this.invuln=0; }
   get isBusy(){ return this.state==='attack'||this.state==='kick'||this.state==='block'||this.cast!==''; }
   get grounded(){ return this.kd<=0 && !this.airborne; }
   canAct(){ return this.kd<=0 && this.freeze<=0 && this.state==='idle' && this.cast===''; }
@@ -129,8 +131,9 @@ function startBackKick(f){
 }
 function startFlyingKick(f){
   // 飞踢：助跑起跳 → 腾空屈膝上提 → 空中出腿前伸 → 落地
+  // 注意：滞空约 1s，落地硬直与惩罚窗口在 update.js 的落地分支里设置
   f.state = 'kick'; f.stT = 0; f.anim = 1.9; f.cool = 1.1;
-  f.jumpV = 460; f.jumpH = f.face * 520; f.airborne = true;   // 跃起前冲（弧线更高）
+  f.jumpV = 460; f.jumpH = f.face * 400; f.airborne = true;   // 跃起前冲（弧线更高）
   f.flyKick = true;   // 标记飞踢
   sfx('kick', .4);
   setTimeout(() => { if(f.state==='kick' && !f.flyKick) f.state='idle'; }, 460);
@@ -156,6 +159,7 @@ function tryBlock(f, dur=0.5){
 
 /* 检测攻击命中：f 攻击方，t 防守方 */
 function resolveHit(f, t){
+  if(t.invuln > 0) return;   // 起身后 1 秒无敌：刚站起来不该连吃第二下
   const r = f.cast==='spinx' ? 130 : (f.cast==='back' ? 96 : (f.cast==='side' ? 105 : (f.cast==='axe' ? 88 : (f.state==='kick' ? 100 : 70))));
   const dist = Math.abs(t.x - f.x) - (f.w + t.w)/2;
   const inRange = dist < r;
@@ -183,7 +187,7 @@ function resolveHit(f, t){
   const base = f.state==='kick' ? f.attack*1.6 : f.attack;
   let dmg = base * (1 + Math.min(combo-1, 3) * 0.14);   // 最多叠 3 段
   if(f.cast==='spinx') dmg = base * 1.9;                 // 旋风踢高伤
-  if(f.flyKick) dmg = base * 1.35;                       // 飞踢加成
+  if(f.flyKick) dmg = base * 1.15;                       // 飞踢加成（同时它有 0.4s 落地硬直可被反击）
 
   const hitX = t.x - t.face*10, hitY = t.h*.62;   // 世界高度（命中点在头部附近）
 
@@ -220,7 +224,7 @@ function knockdown(t, f){
   t.kdCount = (t.kdCount || 0) + 1;
   if(t.kdCount >= 3){
     t.hp = 0;
-    t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
+    t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.y = 0; t.cast=''; t.castT=0;
     burst(t, 30, '#ff3b5c', 8);
     sfx('ko', .6);
     shake(14, .55);
@@ -233,7 +237,7 @@ function knockdown(t, f){
     return;
   }
   t.hp = 0;
-  t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.cast=''; t.castT=0;
+  t.kd = 8; t.kdT = 0; t.state = 'idle'; t.airborne = false; t.jumpV = 0; t.jumpH = 0; t.y = 0; t.cast=''; t.castT=0;
   t.rise = 0; t.riseSpeed = 0;
   burst(t, 30, '#ff3b5c', 8);
   sfx('ko', .6);
@@ -247,6 +251,7 @@ function knockdown(t, f){
   state.count = t.side;      // 'p' 玩家被读秒 / 'a' AI 被读秒
   state.countNum = 8;
   state.countT = 0;
+  t.riseT = 0; t.riseBoost = 1; t.invuln = 0;   // 重新开始计时（起身曲线按已用时间走）
   // 读秒期间对方回到角落
   const winner = (t.side==='p') ? ai : player;
   winner.vx = -winner.face * 40;

@@ -55,24 +55,35 @@ function update(dt, t){
   for(const g of [p, f]){
     if(g.kd>0){
       g.kdT += dt;
-      // 读秒期间对手自动后撤到角落，不攻击
-      if(state.count && state.countT > 1){
-        const atk = (state.count==='p') ? f : p;
-        atk.vx = -atk.face * 60;
-        atk.stepT = 0;
+      /* 读秒期间：双方都固定在各自角落（WT 规则：回角落再继续）。
+         位置每帧硬锁，所以既不会被推挤、也不会漂移，画面稳定可读。 */
+      if(state.count){
+        for(const h of [p, f]){
+          h.x = (h.side === 'p') ? -CORNER_X : CORNER_X;
+          h.vx = 0; h.targetVx = 0; h.stepT = 0;
+          h.face = (h.side === 'p') ? 1 : -1;
+        }
       }
       if(g.rise < 1){
-        // 读秒计时（WT：裁判读秒 8 秒，8 秒内站起即继续，站不起来即 KO）
-        g.rise += dt * (1/10);                   // 纯自动 10 秒才能起身 → 不按键会被 KO
-        if(g.side==='p' && (riseTapP > 0)){ g.rise += riseTapP; riseTapP = 0; }
-        if(g.side==='a') g.rise += dt * R().ai * 0.038;  // AI 起身速度随段位
-        g.rise = Math.min(1, g.rise);
+        /* 起身：用「已用时间 / 目标起身时间」的加速曲线 —— 前期慢、越到后面越快（速度逐渐增加）。
+           目标时间：玩家 7.0s（狂按可大幅加速）；AI 按段位递减，黑带 0.5s。
+           因为目标时间都小于 8 秒读秒，所以认真站起来不会被判 KO；
+           击败对手要靠比分或「三倒判负」。 */
+        const target = (g.side === 'p') ? RISE_TIME_PLAYER : (R().riseTime || 4.5);
+        /* 狂按加速：把点击转成倍率，而不是直接加进度，这样「逐渐增加」的手感才成立 */
+        if(g.side === 'p' && riseTapP > 0){ g.riseBoost = Math.min(6, (g.riseBoost || 1) + riseTapP * 2.2); riseTapP = 0; }
+        g.riseBoost = Math.max(1, lerp(g.riseBoost || 1, 1, dt * 0.9));   // 倍率慢慢回落到 1
+        /* AI 不加额外倍率：RANKS[].riseTime 本身已编码段位速度（黑带 0.5s），
+           再叠乘一次会让它快于设计值 */
+        g.riseT = (g.riseT || 0) + dt * (g.riseBoost || 1);
+        g.rise = Math.min(1, Math.pow(Math.min(1, g.riseT / target), 1.8));
         // 读秒报数
         const newNum = Math.ceil(8 - g.kdT);
         if(newNum < state.countNum && newNum >= 1){ state.countNum = newNum; sfx('tick', .3); }
         if(g.rise >= 1){
-          g.kd = 0; g.kdT = 0; g.state='idle'; g.freeze=.5; g.rise=0; g.riseSpeed=0;
-          g.airborne=false; g.jumpV=0; g.jumpH=0;
+          g.kd = 0; g.kdT = 0; g.state='idle'; g.freeze=.5; g.rise=0; g.riseT=0; g.riseBoost=1;
+          g.y = 0; g.airborne=false; g.jumpV=0; g.jumpH=0;   // 必须归零 y，否则空中被击倒会永久浮空
+          g.invuln = 1.0;                    // 起身后 1 秒无敌，避免刚站起来就连吃第二下
           // 读秒起身：恢复 30% 体能继续比赛（否则空血条打到底，一碰就再倒）
           g.hp = Math.max(g.hp, Math.round(g.maxHp * .3));
           g.hpDisp = g.hp;
@@ -87,6 +98,8 @@ function update(dt, t){
     }
 
     // 跳跃物理
+    /* 保险丝：非滞空状态绝不能残留高度 —— 否则空中被击倒会让角色永久浮空 */
+    if(!g.airborne && g.y) g.y = 0;
     if(g.airborne){
       g.y = (g.y||0) + g.jumpV*dt;
       g.jumpV -= 900*dt;                 // 重力
@@ -95,7 +108,14 @@ function update(dt, t){
       if(g.y <= 0){
         g.y = 0; g.airborne = false; g.jumpV = 0; g.jumpH = 0;
         sfx('punch', .12);
-        if(g.state==='kick' && g.flyKick){ g.flyKick = false; g.state='idle'; }
+        if(g.state==='kick' && g.flyKick){
+          g.flyKick = false; g.state='idle';
+          /* 飞踢落地硬直 —— 这里正是它「赖皮」的根源：
+             原来只有 0.08s，而 1.1s 冷却在约 1s 的滞空里已经走完，
+             落地即可再起跳，对手几乎无法惩罚。现在给一段真实的收招后可被反击的窗口。 */
+          g.freeze = Math.max(g.freeze, .40);
+          g.cool   = Math.max(g.cool, .55);
+        }
         if(g.cast==='spinx'){ g.cast=''; g.castT=0; }
         g.freeze = Math.max(g.freeze, .08);
       }
@@ -104,6 +124,7 @@ function update(dt, t){
     g.vx = lerp(g.vx, 0, dt * 5);
     if(g.state==='idle' && g.freeze>0) g.freeze -= dt;
     g.cool = Math.max(0, g.cool - dt);
+    g.invuln = Math.max(0, (g.invuln || 0) - dt);   // 起身无敌倒计时
     g.flash = Math.max(0, g.flash - dt);
     // 连击窗口
     g.comboT = Math.max(0, g.comboT - dt);

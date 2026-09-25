@@ -22,6 +22,7 @@ let SW = 0, SH = 0, BAR_B = 0, PORTRAIT = false;
 const COURT   = 300;    // WT 比赛区半径（世界单位）
 const RING_OUT = 384;   // 出界线半径（越出即判罚）
 const ART_H   = 118;    // 角色美术基准身高（世界单位），相机取景以此为参照
+const CORNER_X = COURT * 0.78;  // 读秒时双方各自回到的角落位置（WT：回角落再继续）
 
 /* 相机：跟随双方中点、按间距自适应推拉，含震屏与打击瞬间推近 */
 const CAM = {

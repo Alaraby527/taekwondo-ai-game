@@ -11,6 +11,8 @@ function aiThink(dt, t){
   const rank = R();
   const f = ai;
   const p = player;
+  /* 读秒期间不进攻（WT 规则），此时双方已被固定在各自角落 */
+  if(state.count) return;
   const dist = Math.abs(p.x - f.x);
   const skill = rank.ai;
 
@@ -29,12 +31,41 @@ function aiThink(dt, t){
   const farD  = bias.keep + 60;                          // 中性时 ≈ 210（与原 200 接近）
   const nearD = Math.max(70, bias.keep - 40);            // 中性时 ≈ 110（与原一致）
 
-  // 若玩家倒地，AI 后退保持距离（WT：读秒期间不得进攻）
-  if(!p.grounded){ f.face = p.x > f.x ? 1 : -1; f.targetVx = -f.face * 90; f.vx = f.targetVx; return; }
+  /* 检测对手「刚落地」事件 —— 抓落地硬直（与飞踢 0.40s 落地恢复配合） */
+  if(p._wasAir && !p.airborne && p.kd <= 0) f._punishT = 0.5;
+  p._wasAir = p.airborne;
+  if(f._punishT > 0) f._punishT -= dt;
+
+  /* 对手倒地/读秒：后退保持距离，不进攻（WT 规则） */
+  if(p.kd > 0){ f.face = p.x > f.x ? 1 : -1; f.targetVx = -f.face * 90; f.vx = f.targetVx; return; }
 
   // 面朝玩家
   const wantFace = p.x > f.x ? 1 : -1;
-  if(f.grounded && f.state==='idle' && f.cast==='') f.face = wantFace;
+  if(f.grounded && f.state === 'idle' && f.cast === '') f.face = wantFace;
+
+  /* —— 防空：对手腾空（跳踢/飞踢）——
+     这是最容易吃亏也最容易被占便宜的时刻。飞踢算头击 3 分且前冲很远，
+     所以挡下收益最大；退一步让对手落空也行。段位越高反应越准。
+     （原实现把「腾空」和「倒地」混在 !grounded 一个判断里，
+       结果玩家一跳起来 AI 只会用 90 的速度慢慢后退，几乎必然被打中）*/
+  if(p.airborne){
+    const closing = (f.x - p.x) * Math.sign(p.vx || (f.x - p.x)) > 0 && dist < 200;
+    const react = 0.35 + skill * 0.5;
+    if(closing && dist < 195){
+      if(Math.random() < react * 0.7){
+        f.state = 'block'; f.holdBlock = true; f.cool = Math.max(f.cool, .3);
+        setTimeout(() => { if(f.state==='block'){ f.state='idle'; f.holdBlock = false; } }, 400);
+        f.targetVx = 0;
+      } else {
+        f.targetVx = -wantFace * (250 + skill * 140);   // 后撤让飞踢落空
+      }
+    } else {
+      f.targetVx = -wantFace * 110;                     // 不构成威胁，稍退观察
+    }
+    f.thinkT = Math.min(f.thinkT, 0.12);
+    if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt * 12));
+    return;
+  }
 
   // 决策冷却：难度越高反应越快
   f.thinkT = (f.thinkT||0) - dt;
@@ -43,13 +74,19 @@ function aiThink(dt, t){
     const roll = Math.random();
     const aggr = clamp(0.4 + skill * 0.5 + bias.aggr, 0.05, 0.95);   // 进攻欲望：段位 + 战术偏置
 
-    // 反击意识：玩家处于出招前摇/受击硬直 → 立即压上反击
-    const counter = (p.state==='attack' || p.state==='kick' || p.freeze > .15) && dist < 160;
-
-    if(dist > farD){       // 远：快速逼近
+    /* 最高优先级：抓收招 / 抓落地 —— 对手在可惩罚窗口内就别用随机数决定 */
+    const punishable = (p.cool > .18 || (f._punishT || 0) > 0 ||
+                        p.state === 'attack' || p.state === 'kick' || p.freeze > .15) && dist < 175;
+    if(punishable && Math.random() < 0.45 + skill * 0.5){
+      f.thinkT = rand(.16, .28);                        // 惩罚窗口短，反应要更快
+      if(dist < 105 && Math.random() < .30) tryPunch(f);
+      else if(skill > .5 && dist > 135 && Math.random() < .35) startBackKick(f);
+      else tryKick(f);
+    }
+    else if(dist > farD){       // 远：快速逼近
       f.targetVx = wantFace * rand(250, 340) * rank.speed;
     } else if(dist < nearD){ // 近身：踢法压制为主
-      if(counter && skill > .4 && Math.random() < .6 + skill*.35){
+      if(punishable && skill > .4){          // 近身可惩罚窗口：果断出手，不再靠随机数
         if(Math.random() < .88) tryKick(f); else tryPunch(f);
       }
       else if(roll < .15 && skill > .55){
@@ -62,7 +99,12 @@ function aiThink(dt, t){
     } else {               // 中距：突进与踢击试探
       if(roll < .28 && skill > .45){ tryKick(f); }
       else if(roll < aggr*.85){ if(Math.random() < .88) tryKick(f); else tryPunch(f); }
-      else if(roll < .84){ if(Math.random() < .24) startSide(f); else f.targetVx = wantFace * rand(290, 370) * rank.speed; }
+      else if(roll < .84){
+        // 双方都在中距且对手刚出过招 → 突进更积极（惩罚后摇）
+        const push = punishable ? 1.25 : 1;
+        if(Math.random() < .24) startSide(f);
+        else f.targetVx = wantFace * rand(290, 370) * rank.speed * push;
+      }
       else { f.targetVx = -wantFace * rand(60,140); }
     }
     // 格挡反应：玩家出招中，或 Jev 预判对手即将出腿

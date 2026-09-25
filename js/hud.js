@@ -62,7 +62,7 @@ function drawHUD(t){
   ctx.textAlign='center';
   ctx.font = fnt(800, 11*s);
   ctx.fillStyle = 'rgba(143,163,200,.9)';
-  ctx.fillText(`第 ${roundNum} 回合 · ${quickMode ? '速战单局' : '五局三胜'}`, CX, y + hh2(46, s));
+  ctx.fillText(`第 ${roundNum} 回合 · 一局决胜`, CX, y + hh2(46, s));
   const dotY = y + hh2(62, s);
   const need = WIN_NEED();
   for(let i=0;i<need;i++){

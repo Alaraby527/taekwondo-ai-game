@@ -34,7 +34,7 @@ function recordResult(win, roundsWon, needWins){
   if(win) SAVE.won = (SAVE.won || 0) + 1;
   writeSave();
   track(win ? 'match_win' : 'match_lose', {
-    rank: R().name, quick: quickMode,
+    rank: R().name, mode: 'single',
     roundsWon, needWins, winStreak: SAVE.winStreak,
     played: SAVE.played, won: SAVE.won
   });

@@ -522,6 +522,26 @@ function drawFighter(f, t, dt){
   ctx.stroke();
   ctx.restore();
 
+  /* ---------- 起身无敌：护盾环 ----------
+     必须让玩家明确看出「这一秒打不动我」，否则会误以为是自己没打中 */
+  if(f.invuln > 0){
+    const pulse = 0.55 + 0.45 * Math.sin(t * 30);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = isPlayer ? '#7dd3fc' : '#ffb3c0';
+    ctx.globalAlpha = 0.30 + 0.34 * pulse;
+    ctx.lineWidth = 2.6*s;
+    ctx.beginPath();
+    ctx.ellipse(0, HIP_Y - 12*s, 26*s, 60*s, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.10 + 0.12 * pulse;
+    ctx.lineWidth = 7*s;
+    ctx.beginPath();
+    ctx.ellipse(0, HIP_Y - 12*s, 26*s, 60*s, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // 旋风踢：脚下旋转光弧
   if(isSpinx){
     const arcStart = f.phase===0 ? -f.cyc*1.5 : (f.phase===1 ? -1.5 - f.spinP/40 : 2.2 - f.spinP/40*0.3);

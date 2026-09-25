@@ -10,14 +10,13 @@ function showGame(continueSave){
   initJev();        // 换新的 fightId（代理按它计每局预算）
   resetSession();   // 默认：全新一局（摊位＝共用设备，进度不留给下一个人）
   if(continueSave){
-    // 「继续上次」＝分享链接的家庭用户：恢复段位，并直接进入正式赛
+    // 「继续上次」＝分享链接的家庭用户：恢复段位继续打
     rankIdx = clamp(SAVE.rankIdx | 0, 0, RANKS.length - 1);
-    quickMode = false;
   }
   initEmbers();
   startRound();
   checkOrientation();
-  track('start_game', { mode: quickMode ? 'quick' : 'match', rank: R().name, resumed: !!continueSave });
+  track('start_game', { mode: 'single', rank: R().name, resumed: !!continueSave });
 }
 function showHome(){
   $('game').classList.add('hidden');

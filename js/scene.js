@@ -134,7 +134,7 @@ function drawHall(t){
     ctx.clip();
     ctx.font = fnt(800, 15);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const ledText = '跆拳道 × AI 对战　·　WT 竞技规则　·　上海理工大学跆拳道社　·　AI 校园招新　·　五局三胜 · KO 制　·　';
+    const ledText = '跆拳道 × AI 对战　·　WT 竞技规则　·　上海理工大学跆拳道社　·　AI 校园招新　·　一局决胜 · KO 制　·　';
     const tw = ctx.measureText(ledText).width;
     const scroll = (t * 40) % tw;
     ctx.fillStyle = 'rgba(103,232,249,.42)';
