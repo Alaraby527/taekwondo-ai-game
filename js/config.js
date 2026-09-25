@@ -16,12 +16,12 @@ const RISE_TIME_PLAYER = 7.0;
    黑带血量为其余段位曲线的 1.5 倍（195 → 293），做成「宗师」的耐久感。
    注意：startRound() 给双方同一个 R().hp，所以这 1.5 倍对玩家和 AI 同时生效。 */
 const RANKS = [
-  { name:'白带', color:'#e8eefc', ai:0.46, speed:1.0,  hp:90,  riseTime:4.5, tag:'新手 AI' },
-  { name:'黄带', color:'#facc15', ai:0.58, speed:1.12, hp:110, riseTime:3.6, tag:'入门 AI' },
-  { name:'绿带', color:'#22c55e', ai:0.70, speed:1.24, hp:130, riseTime:2.8, tag:'进阶 AI' },
-  { name:'蓝带', color:'#38bdf8', ai:0.82, speed:1.38, hp:150, riseTime:2.0, tag:'高手 AI' },
-  { name:'红带', color:'#f97316', ai:0.93, speed:1.55, hp:172, riseTime:1.2, tag:'精英 AI' },
-  { name:'黑带', color:'#1f2937', ai:1.0,  speed:1.75, hp:293, riseTime:0.5, roundTime:60, tag:'宗师 AI' },  // 195 × 1.5；Boss 局 60 秒
+  { name:'白带', color:'#e8eefc', ai:0.25, speed:0.85, hp:70,  riseTime:5.5, tag:'新手 AI' },
+  { name:'黄带', color:'#facc15', ai:0.38, speed:0.95, hp:85,  riseTime:4.6, tag:'入门 AI' },
+  { name:'绿带', color:'#22c55e', ai:0.50, speed:1.05, hp:105, riseTime:3.8, tag:'进阶 AI' },
+  { name:'蓝带', color:'#38bdf8', ai:0.65, speed:1.18, hp:125, riseTime:3.0, tag:'高手 AI' },
+  { name:'红带', color:'#f97316', ai:0.80, speed:1.35, hp:150, riseTime:2.0, tag:'精英 AI' },
+  { name:'黑带', color:'#1f2937', ai:1.0,  speed:1.75, hp:293, riseTime:0.5, roundTime:30, tag:'宗师 AI' },  // 195 × 1.5；前期 30 秒，超级复活后决战重置为 60 秒
 ];
 let rankIdx = 0;
 let roundWins = 0, aiWins = 0;   // 一局决胜：0/1

@@ -23,7 +23,7 @@ function startRound(){
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
   state.intro = 2.4;                    // 开局倒计时（双方冻结）
-  state.roundTime = R().roundTime || 30;  // 黑带为 60 秒（Boss 局更长），其余 30 秒
+  state.roundTime = 30;                 // 一局决胜：前期统一 30 秒（黑带超级复活后决战重置为 60 秒）
   hitLocks.clear();
   simClear();                           // 清掉上一局遗留的仿真时间回调
   if(typeof resetAlloc === 'function') resetAlloc();   // 清空决战增益

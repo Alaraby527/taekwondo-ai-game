@@ -142,27 +142,21 @@ function aiThink(dt, t){
   }
   f._flyArmed = false;      // 已落地：清掉未完成的衔接计划
 
-  // 决策冷却：难度越高反应越快
-  f.thinkT = (f.thinkT||0) - dt;
-  if(f.thinkT <= 0 && f.canAct()){
-    f.thinkT = rand(.22, .55) / (0.45 + skill*0.65);
-    const roll = Math.random();
-    const aggr = clamp(0.4 + skill * 0.5 + bias.aggr, 0.05, 0.95);   // 进攻欲望：段位 + 战术偏置
+    // 决策冷却：难度越高反应越快（低段位放宽思考间隙，给玩家更多操作窗口）
+    f.thinkT = (f.thinkT||0) - dt;
+    if(f.thinkT <= 0 && f.canAct()){
+      f.thinkT = rand(.28, .68) / (0.35 + skill*0.75);
+      const roll = Math.random();
+      const aggr = clamp(0.25 + skill * 0.65 + bias.aggr, 0.05, 0.95);   // 进攻欲望：低段位更温和，黑带依然满欲望
 
     /* 对手是否处于可惩罚窗口（抓收招 / 抓落地） */
     const punishable = (p.cool > .18 || (f._punishT || 0) > 0 ||
                         p.state === 'attack' || p.state === 'kick' || p.freeze > .15) && dist < 175;
 
     /* 最高优先级①：飞踢 —— 高段位的标志性接近技。
-       原实现只在「特技」块里以 15% 小概率抽，而那一块位于各常规分支之后，
-       前面一旦出招（state 不再是 idle）整块就被跳过 —— 实测黑带 600 次决策里
-       只有 9 次飞踢（1.5%）。这里改为给它独立的决策优先级，并按段位提概率。
-
-       高段位（红带/黑带）用**两段式**：先起跳、按两者距离滞空一段时间，再在空中
-       衔接飞踢（startFlyingKick 会重置 jumpV，因此衔接时会再获得一段滞空并前冲）。
-       这样出腿时机由距离决定，比原地直接起飞更准，也才有「高手的滞空感」。 */
-    const twoPhase = skill >= .9;                  // 红带/黑带走两段式
-    const flyP = skill >= .95 ? .55 : (skill >= .8 ? .32 : (skill >= .6 ? .10 : 0));
+       仅红带与黑带拥有飞踢威胁，中低段位专注打基本功，新手体验更清晰平缓。 */
+    const twoPhase = skill >= .9;                  // 黑带走两段式
+    const flyP = skill >= .95 ? .55 : (skill >= .8 ? .32 : 0);
     /* 出界保护：按最远的「起跳 + 衔接」总位移保守估算落点 */
     const flyDest = f.x + wantFace * (twoPhase ? 300 : 200);
     const canFly = flyP > 0 && dist > 110 && dist < 340 && Math.abs(flyDest) < EDGE;
@@ -231,9 +225,11 @@ function aiThink(dt, t){
       else { f.targetVx = -wantFace * rand(60,140); }
     }
     // 格挡反应：玩家出招中，或 Jev 预判对手即将出腿
-    const blockP = (skill - .25) * 1.0 + bias.block + jKickRisk * 0.35;
+    // 仅高段位具备高概率预判格挡，低段位格挡率大幅降低（给新手破防成就感）
+    const baseBlockSkill = Math.max(0, skill - 0.35);
+    const blockP = baseBlockSkill * 0.85 + bias.block + jKickRisk * (skill >= 0.7 ? 0.35 : 0.15);
     const incoming = (p.state==='attack' || p.state==='kick');
-    if(dist < 150 && Math.random() < blockP && (incoming || jKickRisk > .6)){
+    if(dist < 150 && Math.random() < blockP && (incoming || (skill >= 0.7 && jKickRisk > .6))){
       f.state = 'block'; f.cool = Math.max(f.cool, .4);
       simLater(() => { if(f.state==='block') f.state='idle'; }, .35);
     }
