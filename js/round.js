@@ -99,16 +99,18 @@ function nextRank(){
     if(rankIdx < RANKS.length-1){
       rankIdx++;
       state.winStreak++;
+      /* 持久化：段位推进（家庭用户下次可「继续上次」） */
+      if(typeof SAVE !== 'undefined'){ SAVE.rankIdx = rankIdx; writeSave(); }
     } else {
-      gameOver(true);   // 已通关全部段位
-      return;
+      /* 已是黑带宗师（最高段位）：通关后再战不该改变段位，也不能再次弹结算面板。
+         原实现在这里 `gameOver(true); return;` —— 结果「再战一局」点下去只是把
+         结算面板重新弹一遍，而且 roundWins 未重置，点击永远死循环。 */
+      state.winStreak++;
     }
-    /* 持久化：段位推进（家庭用户下次可「继续上次」） */
-    if(typeof SAVE !== 'undefined'){ SAVE.rankIdx = rankIdx; writeSave(); }
   } else {
     state.winStreak = 0;
   }
-  // 失败（或通关后再玩）：留在当前段位重赛
+  // 胜负均已结算：留在当前段位重赛
   roundWins = 0; aiWins = 0; roundNum = 1;
   startRound();
 }
