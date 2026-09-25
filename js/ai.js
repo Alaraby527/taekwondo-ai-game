@@ -22,8 +22,8 @@ function aiThink(dt, t){
   const bias = ({
     rush:    { aggr: +0.30, keep:  95, block: -0.15 },   // 突进压制
     probe:   { aggr:  0.00, keep: 150, block:  0.00 },   // 游走试探
-    counter: { aggr: -0.10, keep: 195, block: +0.30 },   // 后退反击
-    defend:  { aggr: -0.25, keep: 250, block: +0.40 },   // 稳固防守
+    counter: { aggr: -0.10, keep: 185, block: +0.30 },   // 后退反击
+    defend:  { aggr: -0.25, keep: 215, block: +0.40 },   // 稳固防守
     feint:   { aggr: +0.05, keep: 130, block:  0.00 }    // 假动作诱敌
   })[jt] || { aggr: 0, keep: 150, block: 0 };
   const farD  = bias.keep + 60;                          // 中性时 ≈ 210（与原 200 接近）
@@ -86,6 +86,13 @@ function aiThink(dt, t){
   }
 
   // 移动平滑：向目标速度连续趋近
+  // 出界保护：AI 贴边时绝不允许继续向外走。
+  // 否则 Jev 给的「防守/后退」战术会让 AI 把自己退出界外，每次白送对手 +1 分
+  // （实测现象：玩家挂机不动，却能靠 AI 反复出界拿到 7 分）
+  const EDGE = COURT + 42 - 50;
+  if(Math.abs(f.x) > EDGE && Math.sign(f.targetVx || 0) === Math.sign(f.x)){
+    f.targetVx = 0;
+  }
   if(!f.cast) f.vx = lerp(f.vx, f.targetVx || 0, Math.min(1, dt*10));
 }
 
