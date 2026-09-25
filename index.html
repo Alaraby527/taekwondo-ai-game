@@ -65,9 +65,10 @@
   .perk .d{font-size:11.5px;color:var(--dim);line-height:1.5;}
   .qr-zone{display:flex;align-items:center;gap:16px;border:1px dashed var(--line);border-radius:14px;
     padding:14px 16px;background:rgba(34,211,238,.03);flex-wrap:wrap;}
-  .qr-frame{width:132px;height:132px;flex:none;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;
-    color:#0b0e17;font-size:13px;text-align:center;padding:0;overflow:hidden;position:relative;}
-  .qr-frame img{width:100%;height:100%;object-fit:cover;object-position:center;}
+  .qr-frame{width:148px;height:148px;flex:none;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    color:#0b0e17;font-size:13px;text-align:center;padding:5px;overflow:hidden;position:relative;}
+  .qr-frame img{width:100%;height:100%;object-fit:contain;object-position:center;}
+  .qr-frame img.inv{filter:invert(1);}   /* 黑底白码 → 白底黑码，提升扫码兼容性 */
   .qr-placeholder{font-size:13px;color:#5a6b8c;line-height:1.6;font-weight:600;}
   .qr-item{display:flex;flex-direction:column;align-items:center;gap:6px;}
   .qr-label{font-size:11.5px;font-weight:700;color:var(--dim);white-space:nowrap;}
@@ -170,13 +171,13 @@
     <div class="qr-zone">
       <div class="qr-item">
         <div class="qr-frame">
-          <img src="qr-douyin.jpg" alt="抖音校园 WowLand 活动群二维码（上海理工大学）">
+          <img src="qr-douyin.png" alt="抖音校园 WowLand 活动群二维码（上海理工大学）">
         </div>
         <div class="qr-label">📱 抖音校园 WowLand 活动群</div>
       </div>
       <div class="qr-item">
         <div class="qr-frame">
-          <img src="qr-tkd.jpg" alt="跆拳道社微信群二维码（26 上理跆社招新）">
+          <img class="inv" src="qr-tkd.png" alt="跆拳道社微信群二维码（26 上理跆社招新）">
         </div>
         <div class="qr-label">🥋 跆拳道社微信群</div>
       </div>
@@ -226,13 +227,13 @@
     <div class="op-qr">
       <div class="qr-item">
         <div class="qr-frame">
-          <img src="qr-douyin.jpg" alt="抖音校园 WowLand 活动群二维码（上海理工大学）">
+          <img src="qr-douyin.png" alt="抖音校园 WowLand 活动群二维码（上海理工大学）">
         </div>
         <div class="qr-label small">📱 抖音 WowLand 活动群</div>
       </div>
       <div class="qr-item">
         <div class="qr-frame">
-          <img src="qr-tkd.jpg" alt="跆拳道社微信群二维码（26 上理跆社招新）">
+          <img class="inv" src="qr-tkd.png" alt="跆拳道社微信群二维码（26 上理跆社招新）">
         </div>
         <div class="qr-label small">🥋 跆拳道社微信群</div>
       </div>
