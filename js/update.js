@@ -226,6 +226,17 @@ function update(dt, t){
   }
   for(const g of [p,f]) g.stT += dt;
 
+  /* 行为统计（供 Jev 战术层判断习惯）：最近动作序列 + 防守时长占比 */
+  if(state.mode===STATE.fight && !state.count){
+    for(const g of [p,f]){
+      g.aliveT = (g.aliveT||0) + dt;
+      if(g.state==='block') g.defendT = (g.defendT||0) + dt;
+      const kind = g.state==='kick' ? (g.cast || 'kick') : (g.state==='attack' ? 'punch' : null);
+      if(kind){ if(g._lastKind !== kind) noteAct(g, kind); }
+      g._lastKind = kind;
+    }
+  }
+
   // WT 场地规则：出界判罚（gam-jeom：对方 +1 分，拉回场内）；出界余量随场地宽度收缩
   const obGrace = clamp(COURT * .18, 18, 42);
   const RING_LIMIT = COURT + obGrace;
@@ -269,6 +280,8 @@ function update(dt, t){
   }
 
   // AI 思考
-  if(state.mode===STATE.fight && !introHold) aiThink(dt);
+  if(state.mode===STATE.fight && !introHold) aiThink(dt, t);
+  /* Jev 战术层：到点就异步问一次（单次在途，不阻塞主循环） */
+  if(typeof jevTick === 'function') jevTick(t);
 }
 

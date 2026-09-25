@@ -8,6 +8,7 @@ function showGame(){
   $('game').classList.remove('hidden');
   audio();  // 预创建音频上下文（用户手势）
   resetSession();   // 每次从引导页进入都是新的一局（共用设备 → 速战 + 白带起）
+  initJev();        // 换新的 fightId（代理按它计每局预算）
   initEmbers();
   startRound();
   checkOrientation();

@@ -1,0 +1,33 @@
+# Jev 战术代理 —— 「跆拳道 · AI 对战」AI 对手的战术层
+#
+# 注意：build.context / volumes / env_file 都由宿主机 Docker daemon 解析，
+# 因此这里必须使用宿主机绝对路径 /vol1/...（容器内的 /nas/vol1/... 不可写在这里）。
+#
+# 启动：
+#   cd /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy
+#   /cli/docker compose -f compose.yml -p taekwondo-jev up -d --build
+#
+# 同源托管：本服务同时把游戏静态文件托管在 / ，前端与 /decide 同源，
+# 因此既无 CORS，也不会触发「HTTPS 页面调 HTTP 接口」的 mixed content 拦截。
+
+services:
+  jev-proxy:
+    build:
+      context: /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy
+    image: taekwondo-jev-proxy:local
+    container_name: taekwondo-jev-proxy
+    restart: unless-stopped
+    env_file:
+      - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy/.env
+    environment:
+      PORT: "15810"
+      JEV_TIMEOUT: "6"            # 单次调用超时（秒）
+      BUDGET_PER_FIGHT: "40"      # 每局最多调用次数（成本闸门）
+      CACHE_SIZE: "512"           # 局面缓存条数
+      ALLOW_ORIGIN: "*"
+      SERVE_SITE: "1"
+      SITE_DIR: "/site"
+    ports:
+      - "15810:15810"             # 摊位用 http://<NAS-IP>:15810/ 同时拿到游戏与 AI
+    volumes:
+      - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game:/site:ro

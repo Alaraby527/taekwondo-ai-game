@@ -10,6 +10,8 @@ let roundMsg = '', roundMsgT = 0, roundNum = 1;
 function startRound(){
   const hp = Math.round(R().hp * (quickMode ? .65 : 1));
   player.reset(hp); ai.reset(hp);
+  /* Jev 战术层的行为统计按回合清零 */
+  for(const g of [player, ai]){ g.recentActs=[]; g.defendT=0; g.aliveT=0; g._lastKind=null; }
   player.hpDisp = hp; ai.hpDisp = hp;
   const off = clamp(COURT * .5, 80, 150);   // 开局站位（世界坐标，对称于场地中心）
   player.x = -off; ai.x = off;
