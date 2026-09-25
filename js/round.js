@@ -2,10 +2,13 @@
    从单文件 index.html 拆出；所有脚本共享同一全局作用域（classic script，无模块、无构建）。 */
 "use strict";
 
-/* ---------- 回合流程（WT 五局三胜） ---------- */
+/* ---------- 回合流程（WT 计分；速战单局 / 正式赛五局三胜） ----------
+   quickMode=true  ：首战速战——单局决胜、30 秒、血量 ×0.65，摊位排队 90 秒内出结果
+   quickMode=false ：正式赛——五局三胜、60 秒、原血量（速战获胜后解锁） */
+function WIN_NEED(){ return quickMode ? 1 : 3; }
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
 function startRound(){
-  const hp = R().hp;
+  const hp = Math.round(R().hp * (quickMode ? .65 : 1));
   player.reset(hp); ai.reset(hp);
   player.hpDisp = hp; ai.hpDisp = hp;
   const off = clamp(COURT * .5, 80, 150);   // 开局站位（世界坐标，对称于场地中心）
@@ -14,8 +17,8 @@ function startRound(){
   player.roundDone = false; ai.roundDone = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
-  state.intro = 3.2;                    // 开局倒计时（双方冻结）
-  state.roundTime = 60;                 // WT 单回合 2 分钟，游戏内 60 秒
+  state.intro = quickMode ? 2.4 : 3.2;  // 开局倒计时（双方冻结）
+  state.roundTime = quickMode ? 30 : 60;// 速战 30 秒 / 正式赛 60 秒
   hitLocks.clear();
   sparks = []; rings = []; floats = []; flashA = 0; slowT = 0;
   sfx('bell', .35);
@@ -27,16 +30,17 @@ function endRound(){
   state.count = null;
 }
 function afterRound(){
-  if(roundWins >= 3){ gameOver(true); return; }   // 五局三胜
-  if(aiWins >= 3){ gameOver(false); return; }
+  if(roundWins >= WIN_NEED()){ gameOver(true); return; }
+  if(aiWins >= WIN_NEED()){ gameOver(false); return; }
   roundNum++;
   startRound();
 }
 function gameOver(win){
   state.mode = STATE.over; state.overTimer = 0;
   const panel = $('endPanel');
-  const canPromote = win && roundWins >= 3 && rankIdx < RANKS.length-1;
-  const isFinal = win && roundWins >= 3 && rankIdx >= RANKS.length-1;
+  const need = WIN_NEED();
+  const canPromote = win && roundWins >= need && rankIdx < RANKS.length-1;
+  const isFinal = win && roundWins >= need && rankIdx >= RANKS.length-1;
   $('endKicker').textContent = 'MATCH RESULT · 对局结算';
   $('endTitle').textContent = isFinal ? '黑带宗师！' : (win ? '你赢了！' : '被 AI 击败');
   $('endTitle').className = 'op-title ' + (win ? 'win' : 'lose');
@@ -53,8 +57,14 @@ function gameOver(win){
     $('promoSwatch').style.background = nxt.color;
     $('promoSwatch').style.color = nxt.color === '#1f2937' ? '#4b5563' : nxt.color;
     $('promoName').textContent = `晋级 · ${nxt.name}`;
-    $('promoDesc').textContent = `下一个对手：${nxt.name} AI · ${nxt.tag}`;
-    $('btn-re').textContent = `晋级挑战 · ${nxt.name}`;
+    if(quickMode){
+      // 速战获胜 → 解锁正式赛（下一次“再来一局”就是五局三胜）
+      $('promoDesc').textContent = `速战告捷！下一场解锁五局三胜正式赛 · 对手 ${nxt.name} AI`;
+      $('btn-re').textContent = '进入正式赛 · 五局三胜';
+    } else {
+      $('promoDesc').textContent = `下一个对手：${nxt.name} AI · ${nxt.tag}`;
+      $('btn-re').textContent = `晋级挑战 · ${nxt.name}`;
+    }
   } else if(isFinal){
     promo.classList.add('show');
     $('promoSwatch').style.background = 'linear-gradient(90deg,#e8eefc,#facc15,#38bdf8,#f97316,#111827)';
@@ -72,7 +82,8 @@ function gameOver(win){
   sfx(win ? 'win' : 'lose', .5);
 }
 function nextRank(){
-  if(roundWins>=3){   // 胜利：晋级下一段位（五局三胜）
+  const won = roundWins >= WIN_NEED();
+  if(won){   // 胜利：晋级下一段位
     if(rankIdx < RANKS.length-1){
       rankIdx++;
       state.winStreak++;
@@ -80,11 +91,21 @@ function nextRank(){
       gameOver(true);   // 已通关全部段位
       return;
     }
+    /* 速战获胜 → 解锁正式赛（五局三胜） */
+    quickMode = false;
   } else {
     state.winStreak = 0;
   }
   // 失败（或通关后再玩）：留在当前段位重赛
   roundWins = 0; aiWins = 0; roundNum = 1;
   startRound();
+}
+
+/* 从引导页进入 = 新的一次游玩（摊位是共用设备，必须回到速战 + 白带起） */
+function resetSession(){
+  quickMode = true;
+  rankIdx = 0;
+  roundWins = 0; aiWins = 0; roundNum = 1;
+  state.winStreak = 0;
 }
 

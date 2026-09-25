@@ -16,6 +16,7 @@ const RANKS = [
   { name:'黑带', color:'#1f2937', ai:1.0,  speed:1.75, hp:195, tag:'宗师 AI' },
 ];
 let rankIdx = 0;
-let roundWins = 0, aiWins = 0;   // 大比分（五局三胜）
+let roundWins = 0, aiWins = 0;   // 大比分（速战单局 / 正式赛五局三胜）
+let quickMode = true;            // true=首战速战（单局·30s）；false=正式赛（五局三胜·60s）
 let scoreP = 0, scoreA = 0;      // 回合内得分（WT 竞技规则）
 

@@ -74,10 +74,10 @@ placeTouch();
 /* 竖屏提示：游戏中竖屏建议横屏（每局提示一次，可跳过） */
 let portraitDismissed = false;
 function checkOrientation(){
-  const show = state.mode !== STATE.menu
-    && H > W                       // 用逻辑视口判断，与渲染保持一致
-    && !portraitDismissed;
-  $('rotate-tip').classList.toggle('show', show);
+  /* 竖屏现在由「电影黑边 band」布局原生支持（底部黑边放触屏按键），
+     不再把用户赶去横屏——摊位场景下那句提示等于直接流失。
+     保留 DOM 与开关以便将来按需恢复。 */
+  $('rotate-tip').classList.remove('show');
 }
 $('btn-rotate-dismiss').addEventListener('click', () => { portraitDismissed = true; checkOrientation(); });
 

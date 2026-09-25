@@ -7,9 +7,10 @@ function showGame(){
   $('landing').classList.add('hidden');
   $('game').classList.remove('hidden');
   audio();  // 预创建音频上下文（用户手势）
+  resetSession();   // 每次从引导页进入都是新的一局（共用设备 → 速战 + 白带起）
   initEmbers();
   startRound();
-  checkOrientation();   // startRound 之后（state.mode 已是 fight）才检测竖屏
+  checkOrientation();
 }
 function showHome(){
   $('game').classList.add('hidden');
@@ -20,7 +21,7 @@ function showHome(){
 $('btn-start').addEventListener('click', showGame);
 $('btn-re').addEventListener('click', () => {
   $('endPanel').classList.remove('show');
-  if(roundWins>=3 || aiWins>=3) nextRank();
+  if(roundWins >= WIN_NEED() || aiWins >= WIN_NEED()) nextRank();
   else startRound();
 });
 $('btn-home').addEventListener('click', showHome);

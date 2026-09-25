@@ -5,6 +5,10 @@
 /* ---------- 画布 ---------- */
 const cv = $('cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0;
+/* 屏幕逻辑尺寸 与 游戏区（band）
+   竖屏时游戏区被限制在「电影黑边」内：底部黑边 BAR_B 留给触屏按键。
+   游戏区原点仍在 (0,0) 且与屏幕同宽，所以无需平移，只需收窄逻辑高度 H。 */
+let SW = 0, SH = 0, BAR_B = 0, PORTRAIT = false;
 
 /* =====================================================================
    世界坐标约定
@@ -51,18 +55,26 @@ const FORCE_VW = +QS.get('vw') || 0, FORCE_VH = +QS.get('vh') || 0;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = FORCE_VW || window.innerWidth; H = FORCE_VH || window.innerHeight;
-  cv.width = W * DPR; cv.height = H * DPR;
-  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  SW = FORCE_VW || window.innerWidth;
+  SH = FORCE_VH || window.innerHeight;
+  cv.width = SW * DPR; cv.height = SH * DPR;
+  cv.style.width = SW + 'px'; cv.style.height = SH + 'px';
   if(FORCE_VW || FORCE_VH){
-    const k = Math.min(window.innerWidth / W, window.innerHeight / H);
+    const k = Math.min(window.innerWidth / SW, window.innerHeight / SH);
     cv.style.transformOrigin = '0 0';
     cv.style.transform = 'scale(' + k + ')';
   }
+
+  /* 竖屏 = 电影黑边 band：底部黑边放触屏按键，游戏区收窄到剩余高度 */
+  PORTRAIT = SH > SW;
+  BAR_B = PORTRAIT ? Math.round(clamp(SH * 0.30, 150, 320)) : 0;
+  W = SW;
+  H = SH - BAR_B;
+
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   CX = W / 2;
-  /* 地面线：横屏压在画面下方约 1/5；竖屏上提，给底部触屏按键留出空间 */
-  GROUND = H - clamp(H * (W > H ? 0.20 : 0.30), 92, 300);
+  /* 地面线：横屏压在游戏区下方约 1/5；竖屏略上提，给近端擂台留出纵深 */
+  GROUND = H - clamp(H * (PORTRAIT ? 0.26 : 0.20), 92, 300);
   buildBg();
   placeTouch();
   if(typeof checkOrientation === 'function') checkOrientation();
@@ -83,12 +95,12 @@ function updateCam(dt){
   const spread = alive ? Math.abs(player.x - ai.x) : 0;
 
   /* 需要容纳的世界宽度：双方间距 + 两侧边距（竖屏留窄边距，靠相机跟随） */
-  const land = W > H;
-  const MARGIN = land ? 200 : 75;
+  const land = !PORTRAIT;
+  const MARGIN = land ? 200 : 55;
   const need = spread + MARGIN * 2;
   /* 横屏以宽度取景为主；竖屏以高度取景为主，横向允许贴边 */
   let z = Math.min(W / need, H / (ART_H * (land ? 2.4 : 2.1)));
-  z = clamp(z, land ? 0.85 : 0.95, 3.4);
+  z = clamp(z, land ? 0.85 : 1.0, 3.4);
   z *= (1 + CAM.hitZoom * 0.07 + CAM.koZoom * 0.28);
   CAM.tzoom = z;
 
