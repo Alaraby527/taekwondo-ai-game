@@ -281,6 +281,14 @@
   #t-jump{right:calc(3.5% + 198px);bottom:20%;width:72px;height:72px;
     border-color:rgba(103,232,249,.5);color:#d8f7ff;
     background:radial-gradient(circle at 32% 28%, rgba(103,232,249,.16), rgba(10,52,64,.5) 62%);}
+  /* 窄屏手机（竖屏）：按钮收紧为左右两簇，跳上踢下，避免互相重叠够不到 */
+  @media (max-width:620px) and (orientation:portrait){
+    #t-left{left:2.5%;bottom:7%;width:78px;height:78px;}
+    #t-right{left:calc(2.5% + 88px);bottom:7%;width:78px;height:78px;}
+    #t-kick{right:2.5%;bottom:7%;width:86px;height:86px;}
+    #t-block{right:calc(2.5% + 98px);bottom:7%;width:64px;height:64px;}
+    #t-jump{right:2.5%;bottom:calc(7% + 102px);width:64px;height:64px;}
+  }
 </style>
 </head>
 <body>
@@ -481,7 +489,7 @@ const cv = $('cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, CX = 0, GROUND = 0, COURT = 320;
 /* 比例尺：横屏大幅放大角色（画面主体），竖屏按宽度适配 */
 const SCALE = () => W > H ? clamp(H/600, 1.0, 1.55) : clamp(W/440, .78, 1.08);
-const isTouch = () => matchMedia('(pointer: coarse)').matches;
+const isTouch = () => matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -515,6 +523,7 @@ function audio(){
 }
 function sfx(type, vol = 0.5){
   const ac = audio(); if(!ac) return;
+  if(ac.state === 'suspended') ac.resume();   // iOS：用户手势后恢复被挂起的音频上下文
   const t = ac.currentTime;
   const tone = (f0, f1, dur, wave = 'square', v = vol, delay = 0) => {
     const o = ac.createOscillator(), g = ac.createGain();
@@ -598,12 +607,14 @@ function clearInputs(){
   if(player.holdBlock){ holdBlock(false); }
 }
 
-/* 触屏按钮 */
+/* 触屏按钮（touchBound：resize 会重复调用 placeTouch，监听器只绑一次） */
 let kickEdge = false;   // 踢钮边沿触发（按住不连发）
+let touchBound = false;
 function placeTouch(){
   const show = isTouch();
   $('touch').classList.toggle('show', show);
-  if(!show) return;
+  if(!show || touchBound) return;
+  touchBound = true;
   const b = (id, fn) => {
     const el = $(id);
     el.addEventListener('touchstart', e => { e.preventDefault(); fn(true); }, {passive:false});
@@ -2086,7 +2097,9 @@ function drawHUD(t){
     ctx.font = fnt(800, 14*s);
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = 'rgba(234,242,255,.92)';
-    ctx.fillText(state.count==='p' ? '快速连按 J / K 起身！' : 'AI 正在起身…', CX, H*.34 + 88*s);
+    ctx.fillText(state.count==='p'
+      ? (isTouch() ? '快速连点「踢」起身！' : '快速连按 J / K 起身！')
+      : 'AI 正在起身…', CX, H*.34 + 88*s);
   }
 
   // 开局倒计时（3 · 2 · 1 · 开战！）
@@ -2350,8 +2363,12 @@ $('btn-re').addEventListener('click', () => {
 });
 $('btn-home').addEventListener('click', showHome);
 
-/* 触屏额外：双击防缩放 */
-document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+/* 触屏额外：阻止页面滚动/回弹——仅游戏进行中；引导页与结算面板保留正常滚动（否则手机上滚不动、够不到开始按钮） */
+document.addEventListener('touchmove', e => {
+  if(state.mode === STATE.menu) return;
+  if($('endPanel').classList.contains('show')) return;
+  e.preventDefault();
+}, {passive:false});
 
 resize();
 requestAnimationFrame(loop);
