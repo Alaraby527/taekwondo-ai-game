@@ -323,6 +323,14 @@
   #t-jump{right:calc(3.5% + 198px);bottom:20%;width:72px;height:72px;
     border-color:rgba(103,232,249,.5);color:#d8f7ff;
     background:radial-gradient(circle at 32% 28%, rgba(103,232,249,.16), rgba(10,52,64,.5) 62%);}
+  /* 窄屏手机（竖屏）：按钮收紧为左右两簇，跳上踢下，避免互相重叠够不到 */
+  @media (max-width:620px) and (orientation:portrait){
+    #t-left{left:2.5%;bottom:7%;width:78px;height:78px;}
+    #t-right{left:calc(2.5% + 88px);bottom:7%;width:78px;height:78px;}
+    #t-kick{right:2.5%;bottom:7%;width:86px;height:86px;}
+    #t-block{right:calc(2.5% + 98px);bottom:7%;width:64px;height:64px;}
+    #t-jump{right:2.5%;bottom:calc(7% + 102px);width:64px;height:64px;}
+  }
 </style>
 </head>
 <body>
