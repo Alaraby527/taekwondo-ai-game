@@ -222,17 +222,19 @@ function drawPip(x, y, on, color){
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(Math.PI/4);
-  ctx.beginPath(); ctx.rect(-4.5, -4.5, 9, 9);
   if(on){
+    // 柔光晕：半透明大菱形替代 shadowBlur（手机上 shadowBlur 逐帧开销大）
+    ctx.globalAlpha = .3;
     ctx.fillStyle = color;
-    ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.fill();
+    ctx.fillRect(-7.5, -7.5, 15, 15);
+    ctx.globalAlpha = 1;
+    ctx.fillRect(-4.5, -4.5, 9, 9);
   } else {
     ctx.fillStyle = 'rgba(255,255,255,.10)';
-    ctx.fill();
+    ctx.fillRect(-4.5, -4.5, 9, 9);
     ctx.strokeStyle = 'rgba(255,255,255,.18)';
     ctx.lineWidth = 1;
-    ctx.stroke();
+    ctx.strokeRect(-4.5, -4.5, 9, 9);
   }
   ctx.restore();
 }
@@ -315,9 +317,11 @@ function hpBar(x, y, w, h, f, isP, skew){
   if(pct > 0){
     ctx.save();
     barPath();
-    ctx.shadowColor = isP ? '#22d3ee' : '#ff3b5c';
-    ctx.shadowBlur = 12;
-    ctx.strokeStyle = isP ? 'rgba(125,237,255,.8)' : 'rgba(255,157,176,.8)';
+    // 外圈柔光：双层描边替代 shadowBlur（手机性能）
+    ctx.strokeStyle = isP ? 'rgba(125,237,255,.30)' : 'rgba(255,157,176,.30)';
+    ctx.lineWidth = 4.5;
+    ctx.stroke();
+    ctx.strokeStyle = isP ? 'rgba(125,237,255,.85)' : 'rgba(255,157,176,.85)';
     ctx.lineWidth = 1.2;
     ctx.stroke();
     ctx.restore();

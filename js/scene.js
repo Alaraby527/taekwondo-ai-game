@@ -10,6 +10,8 @@
         → 世界层（相机：擂台／影子／选手／特效）→ HUD
    ===================================================================== */
 let bgCache = null, bgLed = null, BG_PAD = 300;
+/* 逐帧复用的渐变/贴图（每帧 createXxxGradient 在手机上是显著的 GC/性能负担） */
+let floorGrad = null, hazeGrad = null, poolGrad = null, shadowSprite = null;
 
 /* 场馆远景：静态部分只画一次并缓存成比屏幕更宽的画布，支持视差平移 */
 function buildBg(){
@@ -117,6 +119,30 @@ function buildBg(){
     roundRectOn(c, px - 2, ledY - 13, 4, 8, 2); c.fill();
   }
   bgLed = { x: ledX - BG_PAD, y: ledY, w: ledW, h: ledH };   // 存屏幕坐标（扣除缓存内边距）
+
+  /* —— 逐帧复用资源（随尺寸重建） —— */
+  floorGrad = ctx.createLinearGradient(0, GROUND - 4, 0, H);
+  floorGrad.addColorStop(0,   '#17243f');
+  floorGrad.addColorStop(.10, '#111b31');
+  floorGrad.addColorStop(.42, '#0a1122');
+  floorGrad.addColorStop(1,   '#05080f');
+  hazeGrad = ctx.createLinearGradient(0, GROUND - 30, 0, GROUND + 44);
+  hazeGrad.addColorStop(0,  'rgba(120,165,240,0)');
+  hazeGrad.addColorStop(.45,'rgba(120,165,240,.10)');
+  hazeGrad.addColorStop(1,  'rgba(120,165,240,0)');
+  poolGrad = ctx.createRadialGradient(0, 0, 20, 0, 0, COURT * 1.55);
+  poolGrad.addColorStop(0,   'rgba(124,172,255,.15)');
+  poolGrad.addColorStop(.55, 'rgba(90,135,220,.055)');
+  poolGrad.addColorStop(1,   'rgba(0,0,0,0)');
+  shadowSprite = document.createElement('canvas');
+  shadowSprite.width = 128; shadowSprite.height = 128;
+  const sc = shadowSprite.getContext('2d');
+  const sg = sc.createRadialGradient(64, 64, 1, 64, 64, 64);
+  sg.addColorStop(0,   'rgba(0,0,0,.66)');
+  sg.addColorStop(.55, 'rgba(0,0,0,.28)');
+  sg.addColorStop(1,   'rgba(0,0,0,0)');
+  sc.fillStyle = sg;
+  sc.beginPath(); sc.arc(64, 64, 64, 0, Math.PI*2); sc.fill();
 }
 
 /* 远景层：缓存贴图 + 视差 + 动态 LED 滚动 + 体积光锥 */
@@ -174,22 +200,14 @@ function drawBeams(t){
   ctx.restore();
 }
 
-/* 地面基色（纯竖直渐变，不随相机横移，故可在屏幕空间绘制） */
+/* 地面基色（纯竖直渐变，不随相机横移，故可在屏幕空间绘制；渐变对象复用） */
 function drawFloorBase(t){
-  const fl = ctx.createLinearGradient(0, GROUND - 4, 0, H);
-  fl.addColorStop(0,   '#17243f');
-  fl.addColorStop(.10, '#111b31');
-  fl.addColorStop(.42, '#0a1122');
-  fl.addColorStop(1,   '#05080f');
-  ctx.fillStyle = fl;
+  if(!floorGrad) return;                 // buildBg 未跑（理论不发生），防崩溃
+  ctx.fillStyle = floorGrad;
   ctx.fillRect(0, GROUND - 4, W, H - GROUND + 4);
 
   /* 地平线雾：让地面与场馆衔接自然 */
-  const hz = ctx.createLinearGradient(0, GROUND - 30, 0, GROUND + 44);
-  hz.addColorStop(0,  'rgba(120,165,240,0)');
-  hz.addColorStop(.45,'rgba(120,165,240,.10)');
-  hz.addColorStop(1,  'rgba(120,165,240,0)');
-  ctx.fillStyle = hz;
+  ctx.fillStyle = hazeGrad;
   ctx.fillRect(0, GROUND - 30, W, 74);
 
   /* 赛场浮尘 */
@@ -210,15 +228,17 @@ function drawArena(t){
     ctx.beginPath(); ctx.ellipse(0, 0, r, r * SQ, 0, 0, Math.PI*2); ctx.stroke();
   };
 
-  /* 灯光落在垫子上的亮池 */
+  /* 灯光落在垫子上的亮池（渐变对象复用） */
   ctx.save();
   ctx.scale(1, SQ);
-  const pool = ctx.createRadialGradient(0, 0, 20, 0, 0, COURT * 1.55);
-  pool.addColorStop(0,   'rgba(124,172,255,.15)');
-  pool.addColorStop(.55, 'rgba(90,135,220,.055)');
-  pool.addColorStop(1,   'rgba(0,0,0,0)');
+  if(!poolGrad){
+    poolGrad = ctx.createRadialGradient(0, 0, 20, 0, 0, COURT * 1.55);
+    poolGrad.addColorStop(0,   'rgba(124,172,255,.15)');
+    poolGrad.addColorStop(.55, 'rgba(90,135,220,.055)');
+    poolGrad.addColorStop(1,   'rgba(0,0,0,0)');
+  }
   ctx.beginPath(); ctx.arc(0, 0, COURT * 1.55, 0, Math.PI*2);
-  ctx.fillStyle = pool; ctx.fill();
+  ctx.fillStyle = poolGrad; ctx.fill();
   ctx.restore();
 
   /* 出界警戒带：COURT → RING_OUT，斜纹填充 */
@@ -281,7 +301,7 @@ function drawArena(t){
   }
 }
 
-/* 接触阴影：单独一遍，保证在所有角色之下且不互相覆盖 */
+/* 接触阴影：单独一遍，保证在所有角色之下且不互相覆盖（贴图复用，不再逐帧建径向渐变） */
 function drawShadows(){
   const list = [player, ai];
   for(const f of list){
@@ -289,14 +309,10 @@ function drawShadows(){
     const k = clamp(1 - air / 230, .32, 1);
     const rx = 44 * (0.72 + k * 0.28);
     ctx.save();
+    ctx.globalAlpha = k;
     ctx.translate(f.x, 0);
     ctx.scale(1, 0.30);
-    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, rx);
-    g.addColorStop(0,   `rgba(0,0,0,${.66 * k})`);
-    g.addColorStop(.55, `rgba(0,0,0,${.28 * k})`);
-    g.addColorStop(1,   'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI*2); ctx.fill();
+    if(shadowSprite) ctx.drawImage(shadowSprite, -rx, -rx, rx*2, rx*2);
     ctx.restore();
   }
 }

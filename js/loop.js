@@ -9,6 +9,9 @@ function frame(ts){
   let dt = Math.min(.033, (ts - last)/1000 || .016);
   last = ts;
   const t = ts/1000;
+  // 引导页（画布隐藏）时完全不渲染：新版场景更重（2.5D 相机/体积光），
+  // 手机上空跑渲染循环会把 CPU 吃满，页面连滚动都卡——真机踩过的坑
+  if(state.mode === STATE.menu) return;
   // KO 慢动作
   let dtSim = dt;
   if(slowT > 0){ slowT -= dt; dtSim = dt * .35; }

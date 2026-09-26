@@ -61,12 +61,14 @@ function clearInputs(){
   if(player.holdBlock){ holdBlock(false); }
 }
 
-/* 触屏按钮 */
+/* 触屏按钮（touchBound：resize 会重复调用 placeTouch，监听器只绑一次） */
 let kickEdge = false;   // 踢钮边沿触发（按住不连发）
+let touchBound = false;
 function placeTouch(){
   const show = isTouch();
   $('touch').classList.toggle('show', show);
-  if(!show) return;
+  if(!show || touchBound) return;
+  touchBound = true;
   const b = (id, fn) => {
     const el = $(id);
     el.addEventListener('touchstart', e => { e.preventDefault(); if(inputLocked()) return; fn(true); }, {passive:false});

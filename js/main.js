@@ -58,8 +58,15 @@ function initLanding(){
   refreshContinue();
 }
 
-/* 触屏额外：双击防缩放 */
-document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+/* 触屏：仅对局进行中阻止页面滚动/回弹。
+   引导页、结算面板、决战分配面板必须保留正常滚动——
+   否则手机上引导页滚不动，够不到开始按钮（真机踩过的坑） */
+document.addEventListener('touchmove', e => {
+  if(state.mode === STATE.menu) return;
+  const ep = $('endPanel'); if(ep && ep.classList.contains('show')) return;
+  const ap = $('allocPanel'); if(ap && ap.classList.contains('show')) return;
+  e.preventDefault();
+}, {passive:false});
 
 initLanding();
 resize();
