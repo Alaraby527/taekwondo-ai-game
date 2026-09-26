@@ -1,0 +1,48 @@
+# Jev 战术代理 —— 「跆拳道 · AI 对战」AI 对手的战术层
+#
+# 注意：build.context / volumes / env_file 都由宿主机 Docker daemon 解析，
+# 因此这里必须使用宿主机绝对路径 /vol1/...（容器内的 /nas/vol1/... 不可写在这里）。
+#
+# 启动：
+#   cd /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy
+#   /cli/docker compose -f compose.yml -p taekwondo-jev up -d --build
+#
+# 同源托管：本服务同时把游戏静态文件托管在 / ，前端与 /decide 同源，
+# 因此既无 CORS，也不会触发「HTTPS 页面调 HTTP 接口」的 mixed content 拦截。
+
+services:
+  jev-proxy:
+    # build.context 用「相对路径」：本机 compose 无 buildx 插件，回退传统构建器，
+    # 而传统构建器的 context 由 compose 客户端（本容器内）打包上传，
+    # 因此绝对路径 /vol1/... 在容器内不存在、会报 not found。
+    # 相对路径相对 compose 文件所在目录解析 → 从容器内与从宿主机运行都成立。
+    build:
+      context: .
+    image: taekwondo-jev-proxy:local
+    container_name: taekwondo-jev-proxy
+    restart: unless-stopped
+    # env_file 用「相对路径」：它由 compose 客户端（本容器内）读取，
+    # 而容器内看不到 /vol1。相对路径相对 compose 文件所在目录解析，
+    # 因此从容器内运行与从宿主机运行都成立。
+    # （注意：build.context 与 volumes 由宿主机 daemon 解析，必须用 /vol1/... 绝对路径）
+    env_file:
+      - ./.env
+    environment:
+      PORT: "15810"
+      JEV_TIMEOUT: "6"            # 单次调用超时（秒）
+      BUDGET_PER_FIGHT: "120"     # 每局「真实调用」上限（缓存命中不计入）
+      CACHE_SIZE: "512"           # 局面缓存条数
+      MAX_CALLS_PER_DAY: "3000"   # 全局每日上限（成本硬止损）
+      ALLOW_ORIGIN: "*"
+      SERVE_SITE: "1"
+      SITE_DIR: "/site"
+      TRACK_ENABLED: "1"          # 复用本服务收集招新漏斗埋点
+      TRACK_FILE: "/data/events.jsonl"
+    ports:
+      - "15810:15810"             # 摊位用 http://<NAS-IP>:15810/ 同时拿到游戏与 AI
+    volumes:
+      # volumes 的 bind 源由【宿主机 daemon】使用，因此必须是宿主机绝对路径 /vol1/...
+      # （踩过的坑：写成相对路径 ./data 时，compose 客户端会按容器内路径解析再传给 daemon，
+      #   结果 daemon 在宿主机根目录新建了一个 /workspaces/... 目录）
+      - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game:/site:ro
+      - /vol1/1000/docker/opencode-v2/workspaces/taekwondo-ai-game/server/jev-proxy/data:/data

@@ -18,7 +18,7 @@ One Next.js App Router page with a client component. The fight itself renders in
 - Each round: 60s timer, HP bars AND score shown. Round ends by knockdown (HP 0 → 8-second standing count; mashing attack keys speeds recovery; fail = KO) or by higher score at time-up.
 - Match: first to 3 round wins (五局三胜). Ring-out: fully leaving the court boundary = 出界判罚, opponent +1 point, fighter bounced back in.
 - Combo system: hits within 1s stack a damage multiplier (max +42%), show "连击 ×N".
-- AI opponent, 5 belts increasing difficulty: 白带→黄带→蓝带→红带→黑带. Higher belts react faster, block/dodge more, and use flying/tornado kicks (red+). Winning promotes to next belt, losing stays. Belt progress persists in localStorage.
+- AI opponent, 5 belts increasing difficulty: 白带→黄带→蓝带→红带→黑带. Higher belts react faster, block/dodge more, and use flying/tornado kicks (red+). Winning promotes to next belt, losing stays. 🚧 Belt progress was specified to persist in localStorage, but this was **never implemented** — see README「已知事项」. Do not treat it as done.
 - Audio: Web Audio API synthesized SFX only (punch, kick, hit, block guard, KO, countdown beeps, win/lose jingles). No audio files.
 
 ## Visual direction (critical — this is a premium redesign, absolutely not programmer-art stick figures)
