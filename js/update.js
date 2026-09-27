@@ -69,7 +69,7 @@ function update(dt, t){
       if(g.rise < 1){
         /* 起身：用「已用时间 / 目标起身时间」的加速曲线 —— 前期慢、越到后面越快（速度逐渐增加）。
            目标时间：玩家 7.0s（狂按可大幅加速）；AI 按段位递减，黑带 0.5s。
-           因为目标时间都小于 8 秒读秒，所以认真站起来不会被判 KO；
+           因为目标时间都小于 10 秒读秒，所以认真站起来不会被判 KO；
            击败对手要靠比分或「三倒判负」。 */
         const target = (g.side === 'p') ? (RISE_TIME_PLAYER * (g.riseMul || 1)) : (R().riseTime || 4.5);
         /* 狂按加速：把点击转成倍率，而不是直接加进度，这样「逐渐增加」的手感才成立 */
@@ -79,8 +79,8 @@ function update(dt, t){
            再叠乘一次会让它快于设计值 */
         g.riseT = (g.riseT || 0) + dt * (g.riseBoost || 1);
         g.rise = Math.min(1, Math.pow(Math.min(1, g.riseT / target), 1.8));
-        // 读秒报数
-        const newNum = Math.ceil(8 - g.kdT);
+        // 读秒报数（WT：10 秒读秒）
+        const newNum = Math.ceil(10 - g.kdT);
         if(newNum < state.countNum && newNum >= 1){ state.countNum = newNum; sfx('tick', .3); }
         if(g.rise >= 1){
           g.kd = 0; g.kdT = 0; g.state='idle'; g.freeze=.5; g.rise=0; g.riseT=0; g.riseBoost=1;
@@ -90,7 +90,7 @@ function update(dt, t){
           g.hp = Math.max(g.hp, Math.round(g.maxHp * .3));
           g.hpDisp = g.hp;
           if(state.count === g.side) state.count = null;   // 读秒结束
-        } else if(g.kdT >= 8){
+        } else if(g.kdT >= 10){   // WT：10 秒读秒内未起身 → KO 判负
           g.kd = 0; g.kdT = 0; g.state='kd'; g.rise = 1;
           announce('KO 判负', 1.6, '#ff3b5c');
           if(state.count === g.side) state.count = null;
@@ -281,12 +281,14 @@ function update(dt, t){
       if(g.kd>0) continue;
       const over = Math.abs(g.x) - COURT;    // 世界坐标：场地中心为 0
       if(over > obGrace && state.gamT <= 0){
-        if(g.side==='p') scoreA += 1; else scoreP += 1;
+        if(g.side==='p'){ scoreA += 1; state.gamP = (state.gamP||0) + 1; }
+        else { scoreP += 1; state.gamA = (state.gamA||0) + 1; }
         addFloat(g.x, g.h + 30, '出界判罚', '#ff8fa3', 16);
         addFloat(g.x, g.h + 4, '对方 +1', '#ffb3c0', 14);
         g.vx = -Math.sign(g.x) * 430;       // 朝场内弹回（速度自然衰减滑回）
         state.gamT = .6;                          // 判罚防抖（弹回期间不再判）
         sfx('guard', .5);
+        scoreCheck(g.side==='p' ? 'a' : 'p');     // 12 分分差 / 4 次判罚判负检查
       }
       g.x = clamp(g.x, -(RING_LIMIT + 20), RING_LIMIT + 20);
     }

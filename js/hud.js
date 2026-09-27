@@ -62,7 +62,7 @@ function drawHUD(t){
   ctx.textAlign='center';
   ctx.font = fnt(800, 11*s);
   ctx.fillStyle = 'rgba(143,163,200,.9)';
-  ctx.fillText(`第 ${roundNum} 回合 · 一局决胜`, CX, y + hh2(46, s));
+  ctx.fillText(`第 ${roundNum} 回合 · 三局两胜`, CX, y + hh2(46, s));
   const dotY = y + hh2(62, s);
   const need = WIN_NEED();
   for(let i=0;i<need;i++){
@@ -111,8 +111,8 @@ function drawHUD(t){
     ctx.fillStyle = 'rgba(4,6,12,.42)';
     ctx.fillRect(0, 0, W, H);
     const cxr = CX, cyr = H*.34, rr0 = 56*s;
-    // 圆环进度（8 秒）
-    const prog = clamp(vic.kdT/8, 0, 1);
+    // 圆环进度（10 秒读秒）
+    const prog = clamp(vic.kdT/10, 0, 1);
     ctx.strokeStyle = 'rgba(255,255,255,.14)';
     ctx.lineWidth = 6*s;
     ctx.beginPath(); ctx.arc(cxr, cyr, rr0, 0, Math.PI*2); ctx.stroke();
@@ -132,7 +132,9 @@ function drawHUD(t){
     ctx.font = fnt(800, 14*s);
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = 'rgba(234,242,255,.92)';
-    ctx.fillText(state.count==='p' ? '快速连按 J / K 起身！' : 'AI 正在起身…', CX, H*.34 + 88*s);
+    ctx.fillText(state.count==='p'
+      ? (typeof isTouch === 'function' && isTouch() ? '快速连点「踢」起身！' : '快速连按 J / K 起身！')
+      : 'AI 正在起身…', CX, H*.34 + 88*s);
   }
 
   // 开局倒计时（3 · 2 · 1 · 开战！）

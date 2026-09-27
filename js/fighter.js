@@ -177,14 +177,14 @@ function resolveHit(f, t){
   combo++;
   f.combo = combo; f.comboT = 1.0;
 
-  // ---- WT 竞技得分规则（按技术类型） ----
+  // ---- WT 竞技得分规则（2024 版：拳1 · 踢躯干2 · 旋转踢躯干4 · 踢头3 · 旋转踢头5） ----
   const isKick = f.state==='kick';
   const isSpinning = f.cast==='spinx' || f.cast==='back';
   const toHead = isKick && ((f.flyKick && f.airborne) || f.cast==='spinx' || f.cast==='axe');
   let pt = 0;
   if(isKick){
     pt = toHead ? 3 : 2;
-    if(isSpinning) pt += 1;            // 旋转技术 +1
+    if(isSpinning) pt += 2;            // 旋转技术 +2（躯干 2+2=4，头部 3+2=5）
   } else {
     pt = 1;                            // 正拳（仅躯干）
   }
@@ -213,6 +213,7 @@ function resolveHit(f, t){
   t.flash = .2;
   t.hp -= dmg;
   sfx('hit', .45);
+  scoreCheck(f.side);   // 12 分分差 / 4 次判罚判负检查（WT 规则）
   const heavy = f.cast==='spinx' || pt >= 3;
   shake(heavy ? 11 : 4.5, heavy ? .3 : .16);
   hitStopT = heavy ? .09 : .05;   // 命中定格（打击感）
@@ -226,6 +227,7 @@ function resolveHit(f, t){
 }
 
 function knockdown(t, f){
+  if(state.mode !== STATE.fight) return;   // 分差/判罚已终结本回合，不再进入倒地流程
   // 倒地判负（职业踢拳规则）：同一回合被击倒达到 kdLimit 次即输掉该回合（默认 3 次）
   t.kdCount = (t.kdCount || 0) + 1;
 
@@ -253,7 +255,7 @@ function knockdown(t, f){
     player.face = 1; ai.face = -1;
     for(const g of [player, ai]){ g.vx = 0; g.targetVx = 0; g.stepT = 0; }
     state.roundTime = 60;
-    state.countNum = 8;
+    state.countNum = 10;
     state.countT = 0;
 
     /* 立即冻结并弹出「决战前增益分配」面板。
@@ -290,9 +292,9 @@ function knockdown(t, f){
   rings.push({ x:t.x, y:t.h*.55, dur:.6, life:.6, r0:16, r1:230, color:'#ffd7de', lw:5 });
   announce('K.O.!', 1.8, '#ff3b5c');
   t.vx = f.face * 9;
-  // 进入 8 秒读秒（WT 规则：被击倒后裁判读秒，数到 8 未起身即 KO 判负）
+  // 进入 10 秒读秒（WT 规则：被击倒后裁判读秒，10 秒内未示意继续即判负）
   state.count = t.side;      // 'p' 玩家被读秒 / 'a' AI 被读秒
-  state.countNum = 8;
+  state.countNum = 10;
   state.countT = 0;
   t.riseT = 0; t.riseBoost = 1; t.invuln = 0;   // 重新开始计时（起身曲线按已用时间走）
   // 读秒期间对方回到角落

@@ -2,11 +2,14 @@
    从单文件 index.html 拆出；所有脚本共享同一全局作用域（classic script，无模块、无构建）。 */
 "use strict";
 
-/* ---------- 回合流程（WT 计分 · 一局决胜） ----------
-   每场对局 = 1 回合，30 秒，血量 ×0.7。
-   摊位排队要在 90 秒内出结果，所以不再有「几局几胜」的拉扯；
-   段位晋级是唯一的长期进度线。 */
-function WIN_NEED(){ return 1; }
+/* ---------- 回合流程（WT 计分 · 三局两胜回合制） ----------
+   按国际 WT 2024 竞赛规则：一场 3 回合，每回合结束时该回合得分高者拿到
+   「回合优胜」，先拿到 2 个回合优胜者赢得对局；平分判优势方（游戏内判 AI）。
+   分差达 12 分该回合立即结束（回合优胜者产生）；同一回合 4 次 Gam-jeom 判负。
+   击倒后 10 秒读秒。段位晋级是唯一的长期进度线。 */
+function WIN_NEED(){ return 2; }
+const POINT_GAP = 12;      // 分差终结线（WT 规则）
+const GAMJEOM_LIMIT = 4;   // 同一回合累计 4 次判罚 → 判负
 let roundMsg = '', roundMsgT = 0, roundNum = 1;
 let matchRecorded = false;    // 防止同一场对局被记录两次
 function startRound(){
@@ -21,9 +24,10 @@ function startRound(){
   player.roundDone = false; ai.roundDone = false;
   matchRecorded = false;
   scoreP = 0; scoreA = 0;               // 回合得分清零
-  state.count = null; state.countT = 0; state.countNum = 8; state.gamT = 0;
+  state.gamP = 0; state.gamA = 0;       // 本回合判罚计数（4 次判负）
+  state.count = null; state.countT = 0; state.countNum = 10; state.gamT = 0;
   state.intro = 2.4;                    // 开局倒计时（双方冻结）
-  state.roundTime = R().roundTime || 30;// 黑带前期 50 秒，其余段位统一 30 秒（超级复活后决战重置为 60 秒）
+  state.roundTime = R().roundTime || 30;// 各段位回合时长（正式比赛每局 2 分钟，游戏内压缩）
   hitLocks.clear();
   simClear();                           // 清掉上一局遗留的仿真时间回调
   if(typeof resetAlloc === 'function') resetAlloc();   // 清空决战增益
@@ -31,6 +35,19 @@ function startRound(){
   sfx('bell', .35);
   roundMsg = `第 ${roundNum} 回合 · VS ${R().name} AI`; roundMsgT = 1.8;
   state.mode = STATE.fight;
+}
+/* 回合得分变动后统一走这里：检查 12 分分差（该回合立即结束）与 4 次判罚判负 */
+function scoreCheck(leader){
+  if(state.mode !== STATE.fight) return;
+  if(Math.abs(scoreP - scoreA) >= POINT_GAP){
+    if(scoreP > scoreA){ player.roundDone = true; roundWins++; sfx('win'); }
+    else { ai.roundDone = true; aiWins++; sfx('lose'); }
+    announce('分差 12 · 回合结束', 1.6, '#fbbf24');
+    endRound();
+    return;
+  }
+  if((state.gamP||0) >= GAMJEOM_LIMIT && leader === 'a'){ ai.roundDone = true; aiWins++; sfx('lose'); announce('4 次判罚 · 判负', 1.6, '#ff3b5c'); endRound(); return; }
+  if((state.gamA||0) >= GAMJEOM_LIMIT && leader === 'p'){ player.roundDone = true; roundWins++; sfx('win'); announce('4 次判罚 · 判负', 1.6, '#ff3b5c'); endRound(); return; }
 }
 function endRound(){
   state.mode = STATE.over; state.overTimer = 1.6;
@@ -58,7 +75,7 @@ function gameOver(win){
   $('endSub').textContent = isFinal
     ? '你击败了全部段位的 AI，加冕黑带宗师！到跆拳道社练真功夫吧。'
     : win
-      ? `你击败了 ${R().name} AI。后踢与旋风踢是反击利器，踢头一次 3 分。`
+      ? `你击败了 ${R().name} AI。旋转踢打躯干 4 分、踢中头部 5 分，反击是得分利器。`
       : `${R().name} AI 太强了，看准它的出招前摇再反击，多用地踢和格挡！`;
   // 段位晋级徽章
   const promo = $('promoBox');
