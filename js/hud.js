@@ -140,7 +140,7 @@ function drawHUD(t){
   // 开局倒计时（3 · 2 · 1 · 开战！）
   if(state.intro > 0 && state.mode===STATE.fight){
     ctx.textAlign = 'center';
-    const n = state.intro > 2.2 ? '3' : (state.intro > 1.2 ? '2' : (state.intro > .2 ? '1' : null));
+    const n = state.intro > 1.2 ? '3' : (state.intro > .6 ? '2' : (state.intro > .12 ? '1' : null));
     ctx.save();
     ctx.translate(CX, H*.42);
     if(n){

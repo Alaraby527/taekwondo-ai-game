@@ -254,7 +254,7 @@ function knockdown(t, f){
     player.x = -off; ai.x = off;
     player.face = 1; ai.face = -1;
     for(const g of [player, ai]){ g.vx = 0; g.targetVx = 0; g.stepT = 0; }
-    state.roundTime = 60;
+    state.roundTime = 30;
     state.countNum = 10;
     state.countT = 0;
 

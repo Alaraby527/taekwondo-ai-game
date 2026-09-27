@@ -6,6 +6,7 @@
 function showGame(continueSave){
   $('landing').classList.add('hidden');
   $('game').classList.remove('hidden');
+  $('endPanel').classList.remove('show');   // 防止上一局的结算面板残留
   audio();          // 预创建音频上下文（用户手势）
   initJev();        // 换新的 fightId（代理按它计每局预算）
   resetSession();   // 默认：全新一局（摊位＝共用设备，进度不留给下一个人）

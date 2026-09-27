@@ -26,7 +26,7 @@ function startRound(){
   scoreP = 0; scoreA = 0;               // 回合得分清零
   state.gamP = 0; state.gamA = 0;       // 本回合判罚计数（4 次判负）
   state.count = null; state.countT = 0; state.countNum = 10; state.gamT = 0;
-  state.intro = 2.4;                    // 开局倒计时（双方冻结）
+  state.intro = 1.8;                    // 开局倒计时（双方冻结；快速节奏，1.8 秒）
   state.roundTime = R().roundTime || 30;// 各段位回合时长（正式比赛每局 2 分钟，游戏内压缩）
   hitLocks.clear();
   simClear();                           // 清掉上一局遗留的仿真时间回调
@@ -50,7 +50,7 @@ function scoreCheck(leader){
   if((state.gamA||0) >= GAMJEOM_LIMIT && leader === 'p'){ player.roundDone = true; roundWins++; sfx('win'); announce('4 次判罚 · 判负', 1.6, '#ff3b5c'); endRound(); return; }
 }
 function endRound(){
-  state.mode = STATE.over; state.overTimer = 1.6;
+  state.mode = STATE.over; state.overTimer = 0.9;   // 快速过场（摊位节奏）
   state.count = null;
   track('round_end', {
     round: roundNum, mode: 'single',
